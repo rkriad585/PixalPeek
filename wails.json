@@ -7,12 +7,19 @@
   "frontend:dev:watcher": "npm run dev",
   "frontend:dev:serverUrl": "auto",
   "author": {
-    "name": "rkriad585"
+    "name": "rkriad585",
+    "email": "rkriad585@gmail.com",
+    "homepage": "https://rkriad585.github.io",
+    "github": "https://github.com/rkriad585"
   },
   "info": {
     "productName": "PixalPeek",
-    "productVersion": "1.0.0-beta",
+    "productVersion": "0.1.5-beta",
     "copyright": "Copyright 2026 rkriad585",
-    "comments": "QR Code Scanner and Generator"
-  }
+    "website": "https://rkriad585.github.io",
+    "description": "Dual-mode QR code scanner & generator with terminal-aesthetic GUI and full CLI",
+    "comments": "Dot-matrix QR code scanner & generator"
+  },
+  "projectUrl": "https://rkriad585.github.io/PixalPeek",
+  "repoUrl": "https://github.com/rkriad585/PixalPeek"
 }

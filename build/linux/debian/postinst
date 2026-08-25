@@ -1,0 +1,4 @@
+#!/bin/sh
+set -e
+echo "PixalPeek installed to /usr/local/bin/pixalpeek"
+echo "Run 'pixalpeek --version' to verify."

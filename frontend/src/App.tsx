@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 // @ts-ignore
 import { Events, Window } from "/wails/runtime.js";
 import TitleBar, { ALL_TABS } from "./components/TitleBar";
+import ContextMenu from "./components/ContextMenu";
 import ScannerView from "./components/ScannerView";
 import GeneratorView from "./components/GeneratorView";
 import HistoryView from "./components/HistoryView";
@@ -108,6 +109,30 @@ export default function App() {
 
   if (task) return <WorkerOverlay task={task} />;
 
+  const pasteFromClipboard = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      const el = document.activeElement as HTMLInputElement | HTMLTextAreaElement | null;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA")) {
+        const start = el.selectionStart ?? el.value.length;
+        const end = el.selectionEnd ?? el.value.length;
+        el.value = el.value.slice(0, start) + text + el.value.slice(end);
+        el.selectionStart = el.selectionEnd = start + text.length;
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+      } else {
+        await navigator.clipboard.writeText(text);
+      }
+    } catch {}
+  };
+
+  const ctxItems = [
+    { label: "Cut", shortcut: "Ctrl+X", action: () => document.execCommand("cut") },
+    { label: "Copy", shortcut: "Ctrl+C", action: () => document.execCommand("copy") },
+    { label: "Paste", shortcut: "Ctrl+V", action: pasteFromClipboard },
+    { divider: true, label: "", action: () => {} },
+    { label: "Select All", shortcut: "Ctrl+A", action: () => document.execCommand("selectAll") },
+  ];
+
   const eccLabel = "REED_SOLOMON_2D";
   const now = new Date();
   const ts = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
@@ -146,6 +171,7 @@ export default function App() {
           {toast.msg}
         </div>
       )}
+      <ContextMenu items={ctxItems} />
     </div>
   );
 }

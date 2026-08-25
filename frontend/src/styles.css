@@ -1021,6 +1021,63 @@ input[type="file"]::file-selector-button:hover {
   background: var(--bg);
 }
 
+/* ── Context Menu ─────────────────────────────────── */
+.ctx-menu {
+  position: fixed;
+  z-index: 200;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  min-width: 200px;
+  padding: 4px 0;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.ctx-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 7px 14px;
+  background: transparent;
+  border: none;
+  color: var(--fg);
+  font-family: var(--mono);
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s;
+}
+
+.ctx-item:hover {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
+.ctx-item.disabled {
+  color: var(--dim);
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.ctx-item.disabled:hover {
+  background: transparent;
+  color: var(--dim);
+}
+
+.ctx-shortcut {
+  color: var(--dim);
+  font-size: 11px;
+  margin-left: 24px;
+}
+
+.ctx-divider {
+  height: 1px;
+  background: var(--line);
+  margin: 4px 0;
+}
+
 /* ── Splash Screen ────────────────────────────────── */
 .splash {
   display: flex;

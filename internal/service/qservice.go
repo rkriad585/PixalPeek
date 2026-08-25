@@ -225,7 +225,7 @@ func (s *QRService) CompleteTask(result string) {
 var workerPayload string
 
 func (s *QRService) AppVersion() string {
-	return "1.0.0-beta"
+	return "0.1.5-beta"
 }
 
 func (s *QRService) AssessURLSecurity(rawURL string) qrengine.SafetyAssessment {

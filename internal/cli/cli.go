@@ -19,7 +19,7 @@ const (
 	ExitUnsupportedImage = 5
 )
 
-var Version = "1.0.0-beta"
+var Version = "0.1.5-beta"
 
 var WorkerRunner func(cfg *Config) int
 var ClipboardCopier func(png []byte) int

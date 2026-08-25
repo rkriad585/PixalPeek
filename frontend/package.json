@@ -1,8 +1,18 @@
 {
   "name": "pixalpeek-frontend",
   "private": true,
-  "version": "1.0.0-beta",
+  "version": "0.1.5-beta",
   "type": "module",
+  "author": "rkriad585 <rkriad585@gmail.com> (https://rkriad585.github.io)",
+  "license": "MIT",
+  "homepage": "https://rkriad585.github.io/PixalPeek",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rkriad585/PixalPeek.git"
+  },
+  "bugs": {
+    "url": "https://github.com/rkriad585/PixalPeek/issues"
+  },
   "scripts": {
     "dev": "vite --port 5173 --strictPort",
     "build": "tsc && vite build",
