@@ -1,13 +1,38 @@
+# Dependencies
 node_modules/
+frontend/node_modules/
+
+# Build output
 frontend/dist/
 frontend/bindings/
 bin/
 build/bin/
+dist/
+
+# Compiled binaries
 *.exe
 *.exe~
 *.syso
-.DS_Store
-pixalpeek_qr*
-out_qr*/
+*.dll
+*.so
+*.dylib
 *.test
 *.out
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Old names
+pixalpeek_qr*
+out_qr*

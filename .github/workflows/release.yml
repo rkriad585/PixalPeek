@@ -18,6 +18,9 @@ jobs:
   # Windows
   # ═══════════════════════════════════════════════════════
   build-windows:
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -69,8 +72,7 @@ jobs:
           foreach ($f in $files) {
             $ext = $f.Extension
             if ($ext -eq ".exe" -and $f.BaseName -ne "${{ env.APP_NAME }}") {
-              # NSIS installer
-              $newName = "${{ env.APP_NAME }}-Windows-amd64.exe"
+              $newName = "${{ env.APP_NAME }}-Windows-${{ matrix.arch }}.exe"
               Rename-Item $f.FullName -NewName $newName -Force
               Write-Host "Renamed $($f.Name) -> $newName"
             }
@@ -79,8 +81,8 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: windows-amd64
-          path: dist/pixalpeek-Windows-amd64.exe
+          name: windows-${{ matrix.arch }}
+          path: dist/pixalpeek-Windows-${{ matrix.arch }}.exe
 
   # ═══════════════════════════════════════════════════════
   # macOS
@@ -345,6 +347,7 @@ jobs:
           generate_release_notes: true
           files: |
             artifacts/pixalpeek-Windows-amd64.exe
+            artifacts/pixalpeek-Windows-arm64.exe
             artifacts/pixalpeek-MacOS-arm64.dmg
             artifacts/pixalpeek-MacOS-amd64.dmg
             artifacts/pixalpeek-Linux-amd64.deb
