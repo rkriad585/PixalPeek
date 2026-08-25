@@ -1,0 +1,13 @@
+node_modules/
+frontend/dist/
+frontend/bindings/
+bin/
+build/bin/
+*.exe
+*.exe~
+*.syso
+.DS_Store
+pixalpeek_qr*
+out_qr*/
+*.test
+*.out

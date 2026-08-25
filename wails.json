@@ -1,0 +1,18 @@
+{
+  "$schema": "https://wails.io/schemas/config.v3.json",
+  "name": "PixalPeek",
+  "outputfilename": "pixalpeek",
+  "frontend:install": "npm install",
+  "frontend:build": "npm run build",
+  "frontend:dev:watcher": "npm run dev",
+  "frontend:dev:serverUrl": "auto",
+  "author": {
+    "name": "rkriad585"
+  },
+  "info": {
+    "productName": "PixalPeek",
+    "productVersion": "1.0.0-beta",
+    "copyright": "Copyright 2026 rkriad585",
+    "comments": "QR Code Scanner and Generator"
+  }
+}

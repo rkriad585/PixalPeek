@@ -1,0 +1,25 @@
+version: '3'
+
+vars:
+  BIN_NAME: pixalpeek
+
+tasks:
+  bindings:
+    cmds:
+      - wails3 generate bindings -d frontend/bindings -ts -b -silent
+
+  frontend:
+    dir: frontend
+    cmds:
+      - npm run build
+
+  dev:
+    cmds:
+      - wails3 dev
+
+  build:
+    cmds:
+      - wails3 generate bindings -d frontend/bindings -ts -b -silent
+      - task: frontend
+      - go build -tags desktop,production -ldflags "-s -w" -o {{.BIN_NAME}}{{exeExt}} .
+    silent: true
