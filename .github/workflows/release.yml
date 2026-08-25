@@ -1,0 +1,355 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  APP_NAME: pixalpeek
+  VERSION: ${{ github.ref_name }}
+
+jobs:
+  # ═══════════════════════════════════════════════════════
+  # Windows
+  # ═══════════════════════════════════════════════════════
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup NSIS
+        uses: samuelmeuli/action-setup-nsis@v1
+        with:
+          nsis-version: '3.10'
+
+      - name: Install Go dependencies
+        run: go mod download
+
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Build Go binary
+        run: |
+          $env:CGO_ENABLED = "1"
+          go build `
+            -tags desktop,production `
+            -ldflags "-s -w -X 'github.com/rkriad585/PixalPeek/internal/cli.Version=${{ env.VERSION }}'" `
+            -o dist/${{ env.APP_NAME }}.exe `
+            .
+
+      - name: Build NSIS installer
+        run: |
+          makensis /DAPP_VERSION=${{ env.VERSION }} build/windows/installer.nsi
+          $installer = Get-ChildItem -Path "." -Filter "pixalpeek-Windows-*.exe" | Select-Object -First 1
+          if ($installer) {
+            Move-Item $installer.FullName -Destination dist/ -Force
+          }
+
+      - name: Rename to standard pattern
+        run: |
+          $files = Get-ChildItem -Path dist/ -File
+          foreach ($f in $files) {
+            $ext = $f.Extension
+            if ($ext -eq ".exe" -and $f.BaseName -ne "${{ env.APP_NAME }}") {
+              # NSIS installer
+              $newName = "${{ env.APP_NAME }}-Windows-amd64.exe"
+              Rename-Item $f.FullName -NewName $newName -Force
+              Write-Host "Renamed $($f.Name) -> $newName"
+            }
+          }
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-amd64
+          path: dist/pixalpeek-Windows-amd64.exe
+
+  # ═══════════════════════════════════════════════════════
+  # macOS
+  # ═══════════════════════════════════════════════════════
+  build-macos:
+    strategy:
+      matrix:
+        arch: [arm64, amd64]
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Go dependencies
+        run: go mod download
+
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Build Go binary
+        run: |
+          CGO_ENABLED=0 GOOS=darwin GOARCH=${{ matrix.arch }} \
+            go build -tags desktop,production \
+              -ldflags "-s -w -X 'github.com/rkriad585/PixalPeek/internal/cli.Version=${{ env.VERSION }}'" \
+              -o dist/${{ env.APP_NAME }}-darwin-${{ matrix.arch }} \
+              .
+
+      - name: Create .app bundle
+        run: |
+          APP_DIR="dist/PixalPeek.app"
+          mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
+
+          cp dist/${{ env.APP_NAME }}-darwin-${{ matrix.arch }} "$APP_DIR/Contents/MacOS/${{ env.APP_NAME }}"
+          chmod 755 "$APP_DIR/Contents/MacOS/${{ env.APP_NAME }}"
+          cp build/appicon.png "$APP_DIR/Contents/Resources/appicon.png" 2>/dev/null || true
+          cp build/macos/Info.plist "$APP_DIR/Contents/Info.plist"
+
+      - name: Create .dmg
+        run: |
+          hdiutil create \
+            -volname "PixalPeek" \
+            -srcfolder "dist/PixalPeek.app" \
+            -ov \
+            -format UDZO \
+            "dist/${{ env.APP_NAME }}-MacOS-${{ matrix.arch }}.dmg"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.arch }}
+          path: dist/pixalpeek-MacOS-${{ matrix.arch }}.dmg
+
+  # ═══════════════════════════════════════════════════════
+  # Linux
+  # ═══════════════════════════════════════════════════════
+  build-linux:
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Go dependencies
+        run: go mod download
+
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Build Go binary
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=${{ matrix.arch }} \
+            go build -tags desktop,production \
+              -ldflags "-s -w -X 'github.com/rkriad585/PixalPeek/internal/cli.Version=${{ env.VERSION }}'" \
+              -o dist/${{ env.APP_NAME }} \
+              .
+
+      - name: Build .deb package
+        run: |
+          DEB_DIR="dist/deb-pkg"
+          DEB_OUT="dist/${{ env.APP_NAME }}-Linux-${{ matrix.arch }}.deb"
+          rm -rf "$DEB_DIR"
+          mkdir -p "$DEB_DIR/DEBIAN" "$DEB_DIR/usr/local/bin"
+
+          cp dist/${{ env.APP_NAME }} "$DEB_DIR/usr/local/bin/${{ env.APP_NAME }}"
+          chmod 755 "$DEB_DIR/usr/local/bin/${{ env.APP_NAME }}"
+
+          VERSION_CLEAN="${VERSION//-/.}"
+          SIZE_KB=$(du -k "dist/${{ env.APP_NAME }}" | cut -f1)
+
+          cat > "$DEB_DIR/DEBIAN/control" <<EOF
+          Package: ${{ env.APP_NAME }}
+          Version: $VERSION_CLEAN
+          Section: utils
+          Priority: optional
+          Architecture: ${{ matrix.arch }}
+          Maintainer: rkriad585 <rkriad585@gmail.com>
+          Homepage: https://rkriad585.github.io/PixalPeek
+          Installed-Size: $SIZE_KB
+          Description: Dot-matrix QR code scanner & generator
+           PixalPeek is a dual-mode QR code tool with a GUI (Wails v3)
+           and a full-featured CLI. Supports scanning, generating, batch
+           processing, camera scan, clipboard decode, and more.
+          EOF
+
+          dpkg-deb --build "$DEB_DIR" "$DEB_OUT"
+
+      - name: Build .rpm package
+        run: |
+          sudo apt-get update && sudo apt-get install -y rpm
+          RPM_DIR="dist/rpm-build"
+          RPM_OUT="dist/${{ env.APP_NAME }}-Linux-${{ matrix.arch }}.rpm"
+          mkdir -p "$RPM_DIR"/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+
+          VERSION_CLEAN="${VERSION//-/.}"
+          cat > "$RPM_DIR/SPECS/${{ env.APP_NAME }}.spec" <<EOF
+          Name:           ${{ env.APP_NAME }}
+          Version:        $VERSION_CLEAN
+          Release:        1%{?dist}
+          Summary:        Dot-matrix QR code scanner & generator
+          License:        MIT
+          URL:            https://rkriad585.github.io/PixalPeek
+          BuildArch:      ${{ matrix.arch }}
+
+          %description
+          PixalPeek is a dual-mode QR code tool with a GUI and full CLI.
+
+          %install
+          mkdir -p %{buildroot}/usr/local/bin
+          cp dist/${{ env.APP_NAME }} %{buildroot}/usr/local/bin/${{ env.APP_NAME }}
+          chmod 755 %{buildroot}/usr/local/bin/${{ env.APP_NAME }}
+
+          %files
+          /usr/local/bin/${{ env.APP_NAME }}
+
+          %changelog
+          * $(date "+%a %b %d %Y") rkriad585 <rkriad585@gmail.com> - $VERSION_CLEAN-1
+          - Initial RPM release
+          EOF
+
+          rpmbuild -bb "$RPM_DIR/SPECS/${{ env.APP_NAME }}.spec" \
+            --define "_topdir $RPM_DIR"
+
+          RPM_FILE=$(find "$RPM_DIR/RPMS" -name "*.rpm" | head -1)
+          if [ -n "$RPM_FILE" ]; then
+            cp "$RPM_FILE" "$RPM_OUT"
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ matrix.arch }}
+          path: |
+            dist/pixalpeek-Linux-${{ matrix.arch }}.deb
+            dist/pixalpeek-Linux-${{ matrix.arch }}.rpm
+
+  # ═══════════════════════════════════════════════════════
+  # Android
+  # ═══════════════════════════════════════════════════════
+  build-android:
+    strategy:
+      matrix:
+        arch: [arm64, armeabi-v7a]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Wails CLI
+        run: |
+          go install github.com/wailsapp/wails/v3/cmd/wails@latest
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Go dependencies
+        run: go mod download
+
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Build APK
+        run: |
+          wails build \
+            -platform "android/${{ matrix.arch }}" \
+            -o "dist/${{ env.APP_NAME }}-Android-${{ matrix.arch }}.apk"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-${{ matrix.arch }}
+          path: dist/pixalpeek-Android-${{ matrix.arch }}.apk
+
+  # ═══════════════════════════════════════════════════════
+  # Release
+  # ═══════════════════════════════════════════════════════
+  release:
+    needs: [build-windows, build-macos, build-linux, build-android]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: List artifacts
+        run: ls -la artifacts/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "PixalPeek ${{ env.VERSION }}"
+          draft: false
+          prerelease: true
+          generate_release_notes: true
+          files: |
+            artifacts/pixalpeek-Windows-amd64.exe
+            artifacts/pixalpeek-MacOS-arm64.dmg
+            artifacts/pixalpeek-MacOS-amd64.dmg
+            artifacts/pixalpeek-Linux-amd64.deb
+            artifacts/pixalpeek-Linux-amd64.rpm
+            artifacts/pixalpeek-Linux-arm64.deb
+            artifacts/pixalpeek-Linux-arm64.rpm
+            artifacts/pixalpeek-Android-arm64.apk
+            artifacts/pixalpeek-Android-armeabi-v7a.apk

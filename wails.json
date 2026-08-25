@@ -21,5 +21,8 @@
     "comments": "Dot-matrix QR code scanner & generator"
   },
   "projectUrl": "https://rkriad585.github.io/PixalPeek",
-  "repoUrl": "https://github.com/rkriad585/PixalPeek"
+  "repoUrl": "https://github.com/rkriad585/PixalPeek",
+  "android": {
+    "packageName": "com.pixalpeek.rkriad585"
+  }
 }
