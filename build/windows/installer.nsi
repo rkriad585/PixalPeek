@@ -72,9 +72,6 @@ Section "Install" SecInstall
     WriteRegDWORD HKCU "${UNINSTALL_KEY}" "NoModify" 1
     WriteRegDWORD HKCU "${UNINSTALL_KEY}" "NoRepair" 1
 
-    ; Add to PATH
-    EnVar::AddValue "PATH" "$INSTDIR"
-
     ; File size
     ${GetSize} "$INSTDIR" "/S=0K" $0 $1 $2
     IntFmt $0 "0x%08X" $0
@@ -93,5 +90,4 @@ Section "Uninstall"
 
     DeleteRegKey HKCU "${UNINSTALL_KEY}"
 
-    EnVar::RemoveValue "PATH" "$INSTDIR"
 SectionEnd
