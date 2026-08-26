@@ -52,7 +52,7 @@ Section "Install" SecInstall
     SetOutPath "$INSTDIR"
     SetShellVarContext current
 
-    File "..\..\pixalpeek.exe"
+    File "..\..\dist\pixalpeek.exe"
 
     ; Write uninstaller
     WriteUninstaller "$INSTDIR\uninstall.exe"
