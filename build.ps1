@@ -79,7 +79,7 @@ if (Test-Path $nsisScript) {
     & $nsis /DAPP_VERSION=$version $nsisScript
     if ($LASTEXITCODE -ne 0) { Write-Error "NSIS build failed"; exit 1 }
 
-    $installer = Get-ChildItem -Path "." -Filter "pixalpeek-Windows-*.exe" | Select-Object -First 1
+    $installer = Get-ChildItem -Path "." -Filter "pixalpeek-windows-*.exe" | Select-Object -First 1
     if ($installer) {
         Move-Item $installer.FullName -Destination $outDir -Force
         $installerSize = [math]::Round($installer.Length / 1MB, 2)
@@ -102,7 +102,7 @@ if (-not $androidHome) {
 
 if (Test-Path $androidHome) {
     Write-Host "  Android SDK: $androidHome" -ForegroundColor Gray
-    Write-Host "  To build APK, run: wails build -platform android/arm64 -o $outDir\pixalpeek-Android-arm64.apk" -ForegroundColor Yellow
+    Write-Host "  To build APK, run: wails build -platform android/arm64 -o $outDir\pixalpeek-android-arm64.apk" -ForegroundColor Yellow
 } else {
     Write-Host "  Android SDK not found, skipping APK build" -ForegroundColor Yellow
     Write-Host "  Install Android SDK and run: wails build -platform android/arm64" -ForegroundColor Gray

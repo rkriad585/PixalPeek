@@ -15,15 +15,20 @@ ARCH="$(uname -m)"
 
 case "$OS" in
     Linux*)
-        OS_NAME="Linux"
         case "$ARCH" in
-            x86_64|amd64)  ARCH_NAME="amd64" ;;
-            aarch64|arm64) ARCH_NAME="arm64" ;;
+            x86_64|amd64)
+                OS_NAME="linux"
+                ARCH_NAME="amd64"
+                ;;
+            aarch64|arm64)
+                OS_NAME="arm-linux"
+                ARCH_NAME="arm64"
+                ;;
             *)             echo "Unsupported architecture: $ARCH"; exit 1 ;;
         esac
         ;;
     Darwin*)
-        OS_NAME="MacOS"
+        OS_NAME="darwin"
         case "$ARCH" in
             x86_64|amd64)  ARCH_NAME="amd64" ;;
             arm64|aarch64) ARCH_NAME="arm64" ;;
@@ -48,24 +53,24 @@ RELEASE_JSON=$(curl -fsSL "$API_URL" ${GITHUB_TOKEN:+-H "Authorization: token $G
 TAG=$(echo "$RELEASE_JSON" | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')
 echo "  Latest version: $TAG"
 
-# Find matching asset: pixalpeek-Linux-amd64.deb, pixalpeek-MacOS-arm64.dmg, etc.
+# Find matching asset: pixalpeek-linux-amd64.deb, pixalpeek-darwin-arm64.dmg, etc.
 ASSET_URL=""
 ASSET_NAME=""
 
-if [ "$OS_NAME" = "Linux" ]; then
+if [ "$OS_NAME" = "linux" ] || [ "$OS_NAME" = "arm-linux" ]; then
     # Try .deb first, then .rpm, then .tar.gz
     for ext in "deb" "rpm" "tar.gz" "tgz"; do
-        MATCH=$(echo "$RELEASE_JSON" | grep '"browser_download_url"' | grep -i "pixalpeek-.*${OS_NAME}.*${ARCH_NAME}.*\.${ext}" | head -1 | sed 's/.*"browser_download_url": *"\([^"]*\)".*/\1/')
+        MATCH=$(echo "$RELEASE_JSON" | grep '"browser_download_url"' | grep -i "pixalpeek-${OS_NAME}-${ARCH_NAME}.*\.${ext}" | head -1 | sed 's/.*"browser_download_url": *"\([^"]*\)".*/\1/')
         if [ -n "$MATCH" ]; then
             ASSET_URL="$MATCH"
             ASSET_NAME=$(basename "$MATCH")
             break
         fi
     done
-elif [ "$OS_NAME" = "MacOS" ]; then
+elif [ "$OS_NAME" = "darwin" ]; then
     # Try .dmg first, then .pkg, then .tar.gz
     for ext in "dmg" "pkg" "tar.gz" "tgz"; do
-        MATCH=$(echo "$RELEASE_JSON" | grep '"browser_download_url"' | grep -i "pixalpeek-.*${OS_NAME}.*${ARCH_NAME}.*\.${ext}" | head -1 | sed 's/.*"browser_download_url": *"\([^"]*\)".*/\1/')
+        MATCH=$(echo "$RELEASE_JSON" | grep '"browser_download_url"' | grep -i "pixalpeek-darwin-${ARCH_NAME}.*\.${ext}" | head -1 | sed 's/.*"browser_download_url": *"\([^"]*\)".*/\1/')
         if [ -n "$MATCH" ]; then
             ASSET_URL="$MATCH"
             ASSET_NAME=$(basename "$MATCH")
@@ -77,7 +82,7 @@ fi
 if [ -z "$ASSET_URL" ]; then
     echo "Error: No installer found for ${OS_NAME}-${ARCH_NAME}"
     echo ""
-    echo "Expected pattern: pixalpeek-${OS_NAME}-${ARCH_NAME}.{deb,rpm,dmg,pkg}"
+    echo "Expected pattern: pixalpeek-${OS_NAME}-${ARCH_NAME}.{deb,rpm,dmg}"
     echo ""
     echo "Available assets:"
     echo "$RELEASE_JSON" | grep '"name"' | grep -v '"name": "repo"' | head -20 | sed 's/.*"name": *"\([^"]*\)".*/  \1/'

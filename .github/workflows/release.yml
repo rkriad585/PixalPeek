@@ -65,8 +65,10 @@ jobs:
         include:
           - arch: amd64
             os: windows-latest
+            os_name: windows
           - arch: arm64
             os: windows-11-arm
+            os_name: windows
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
@@ -142,7 +144,7 @@ jobs:
             Write-Error "NSIS installer was not found."
             exit 1
           }
-          $output = "dist/${{ env.APP_NAME }}-Windows-${{ matrix.arch }}.exe"
+          $output = "dist/${{ env.APP_NAME }}-${{ matrix.os_name }}-${{ matrix.arch }}.exe"
           Move-Item $installer.FullName $output -Force
           Write-Host "Installer: $output"
 
@@ -150,7 +152,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-${{ matrix.arch }}
-          path: dist/${{ env.APP_NAME }}-Windows-${{ matrix.arch }}.exe
+          path: dist/${{ env.APP_NAME }}-${{ matrix.os_name }}-${{ matrix.arch }}.exe
           if-no-files-found: error
 
   # ═══════════════════════════════════════════════════════
@@ -166,8 +168,10 @@ jobs:
         include:
           - arch: arm64
             os: macos-latest
+            os_name: darwin
           - arch: amd64
-            os: macos-13
+            os: macos-latest
+            os_name: darwin
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
@@ -229,13 +233,13 @@ jobs:
             -srcfolder "dist/PixalPeek.app" \
             -ov \
             -format UDZO \
-            "dist/${{ env.APP_NAME }}-MacOS-${{ matrix.arch }}.dmg"
+            "dist/${{ env.APP_NAME }}-${{ matrix.os_name }}-${{ matrix.arch }}.dmg"
 
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
         with:
           name: macos-${{ matrix.arch }}
-          path: dist/${{ env.APP_NAME }}-MacOS-${{ matrix.arch }}.dmg
+          path: dist/${{ env.APP_NAME }}-${{ matrix.os_name }}-${{ matrix.arch }}.dmg
           if-no-files-found: error
 
   # ═══════════════════════════════════════════════════════
@@ -251,8 +255,10 @@ jobs:
         include:
           - arch: amd64
             os: ubuntu-24.04
+            os_name: linux
           - arch: arm64
             os: ubuntu-24.04-arm
+            os_name: arm-linux
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
@@ -316,7 +322,7 @@ jobs:
         run: |
           set -euo pipefail
           DEB_DIR="dist/deb-pkg"
-          DEB_OUT="dist/${{ env.APP_NAME }}-Linux-${{ matrix.arch }}.deb"
+          DEB_OUT="dist/${{ env.APP_NAME }}-${{ matrix.os_name }}-${{ matrix.arch }}.deb"
           VERSION_CLEAN="${{ needs.version.outputs.version }}"
           VERSION_CLEAN="${VERSION_CLEAN#v}"
           VERSION_CLEAN="${VERSION_CLEAN//-/.}"
@@ -347,7 +353,7 @@ jobs:
           set -euo pipefail
           sudo apt-get install -y rpm
           RPM_DIR="dist/rpm-build"
-          RPM_OUT="dist/${{ env.APP_NAME }}-Linux-${{ matrix.arch }}.rpm"
+          RPM_OUT="dist/${{ env.APP_NAME }}-${{ matrix.os_name }}-${{ matrix.arch }}.rpm"
           VERSION_CLEAN="${{ needs.version.outputs.version }}"
           VERSION_CLEAN="${VERSION_CLEAN#v}"
           VERSION_CLEAN="${VERSION_CLEAN//-/.}"
@@ -388,8 +394,8 @@ jobs:
         with:
           name: linux-${{ matrix.arch }}
           path: |
-            dist/${{ env.APP_NAME }}-Linux-${{ matrix.arch }}.deb
-            dist/${{ env.APP_NAME }}-Linux-${{ matrix.arch }}.rpm
+            dist/${{ env.APP_NAME }}-${{ matrix.os_name }}-${{ matrix.arch }}.deb
+            dist/${{ env.APP_NAME }}-${{ matrix.os_name }}-${{ matrix.arch }}.rpm
           if-no-files-found: error
 
   # ═══════════════════════════════════════════════════════
@@ -456,13 +462,13 @@ jobs:
           mkdir -p dist
           wails3 build \
             -platform "android/${{ matrix.arch }}" \
-            -o "dist/${{ env.APP_NAME }}-Android-${{ matrix.arch }}.apk"
+            -o "dist/${{ env.APP_NAME }}-android-${{ matrix.arch }}.apk"
 
       - name: Upload Android artifact
         uses: actions/upload-artifact@v4
         with:
           name: android-${{ matrix.arch }}
-          path: dist/${{ env.APP_NAME }}-Android-${{ matrix.arch }}.apk
+          path: dist/${{ env.APP_NAME }}-android-${{ matrix.arch }}.apk
           if-no-files-found: error
 
   # ═══════════════════════════════════════════════════════
@@ -498,13 +504,13 @@ jobs:
           prerelease: true
           generate_release_notes: true
           files: |
-            artifacts/${{ env.APP_NAME }}-Windows-amd64.exe
-            artifacts/${{ env.APP_NAME }}-Windows-arm64.exe
-            artifacts/${{ env.APP_NAME }}-MacOS-arm64.dmg
-            artifacts/${{ env.APP_NAME }}-MacOS-amd64.dmg
-            artifacts/${{ env.APP_NAME }}-Linux-amd64.deb
-            artifacts/${{ env.APP_NAME }}-Linux-amd64.rpm
-            artifacts/${{ env.APP_NAME }}-Linux-arm64.deb
-            artifacts/${{ env.APP_NAME }}-Linux-arm64.rpm
-            artifacts/${{ env.APP_NAME }}-Android-arm64.apk
-            artifacts/${{ env.APP_NAME }}-Android-armeabi-v7a.apk
+            artifacts/${{ env.APP_NAME }}-windows-amd64.exe
+            artifacts/${{ env.APP_NAME }}-windows-arm64.exe
+            artifacts/${{ env.APP_NAME }}-darwin-arm64.dmg
+            artifacts/${{ env.APP_NAME }}-darwin-amd64.dmg
+            artifacts/${{ env.APP_NAME }}-linux-amd64.deb
+            artifacts/${{ env.APP_NAME }}-linux-amd64.rpm
+            artifacts/${{ env.APP_NAME }}-arm-linux-arm64.deb
+            artifacts/${{ env.APP_NAME }}-arm-linux-arm64.rpm
+            artifacts/${{ env.APP_NAME }}-android-arm64.apk
+            artifacts/${{ env.APP_NAME }}-android-armeabi-v7a.apk

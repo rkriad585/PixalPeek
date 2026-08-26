@@ -88,10 +88,11 @@ echo ""
 build_linux() {
     log "[3/6] Building Linux packages..."
     local ARCH
+    local OS_NAME
     ARCH="$(uname -m)"
     case "$ARCH" in
-        x86_64)  ARCH="amd64" ;;
-        aarch64) ARCH="arm64" ;;
+        x86_64)  ARCH="amd64"; OS_NAME="linux" ;;
+        aarch64) ARCH="arm64"; OS_NAME="arm-linux" ;;
     esac
 
     # ── Cross-compile if on macOS building for Linux
@@ -109,7 +110,7 @@ build_linux() {
     # ── .deb package ──────────────────────────────────
     log "  Building .deb package..."
     local DEB_DIR="$DIST_DIR/deb-pkg"
-    local DEB_OUT="$OUT_DIR/${APP_NAME}-Linux-${ARCH}.deb"
+    local DEB_OUT="$OUT_DIR/${APP_NAME}-${OS_NAME}-${ARCH}.deb"
     rm -rf "$DEB_DIR"
     mkdir -p "$DEB_DIR/DEBIAN" "$DEB_DIR/usr/local/bin"
 
@@ -153,7 +154,7 @@ POSTRM
 
     # ── .rpm package ──────────────────────────────────
     log "  Building .rpm package..."
-    local RPM_OUT="$OUT_DIR/${APP_NAME}-Linux-${ARCH}.rpm"
+    local RPM_OUT="$OUT_DIR/${APP_NAME}-${OS_NAME}-${ARCH}.rpm"
     if command -v rpmbuild &>/dev/null; then
         local RPM_DIR="$DIST_DIR/rpm-build"
         mkdir -p "$RPM_DIR"/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
@@ -209,7 +210,7 @@ build_macos() {
     ARCH="$(uname -m)"
 
     local BINARY="$DIST_DIR/${APP_NAME}-darwin-${ARCH}"
-    local DMG_OUT="$OUT_DIR/${APP_NAME}-MacOS-${ARCH}.dmg"
+    local DMG_OUT="$OUT_DIR/${APP_NAME}-darwin-${ARCH}.dmg"
 
     log "  Building for darwin/$ARCH..."
     CGO_ENABLED=0 GOOS=darwin GOARCH="$ARCH" \
@@ -288,7 +289,7 @@ build_android() {
 
     # Build for both arm64 and armeabi-v7a
     for ARCH in arm64 armeabi-v7a; do
-        local APK_OUT="$OUT_DIR/${APP_NAME}-Android-${ARCH}.apk"
+        local APK_OUT="$OUT_DIR/${APP_NAME}-android-${ARCH}.apk"
         log "  Building for android/$ARCH..."
 
         wails build -platform "android/$ARCH" -o "$APK_OUT" 2>/dev/null && {

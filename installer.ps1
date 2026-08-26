@@ -17,13 +17,13 @@ $release = Invoke-RestMethod -Uri $apiUrl -Headers $headers
 $tag = $release.tag_name
 Write-Host "  Latest version: $tag" -ForegroundColor Gray
 
-# Match pixalpeek-Windows-amd64.exe or pixalpeek-windows-x64.exe etc.
+# Match pixalpeek-windows-amd64.exe
 $asset = $release.assets | Where-Object {
-    $_.name -match "pixalpeek-.*[Ww]indows.*\.exe$"
+    $_.name -match "pixalpeek-windows-.*\.exe$"
 } | Select-Object -First 1
 
 if (-not $asset) {
-    Write-Error "No Windows installer found. Expected pattern: pixalpeek-Windows-<arch>.exe"
+    Write-Error "No Windows installer found. Expected pattern: pixalpeek-windows-<arch>.exe"
     Write-Host "  Available assets:" -ForegroundColor Yellow
     $release.assets | ForEach-Object { Write-Host "    $($_.name)" -ForegroundColor Gray }
     exit 1
