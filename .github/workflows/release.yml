@@ -17,9 +17,9 @@ env:
   NODE_VERSION: '22'
 
 jobs:
-  # ═══════════════════════════════════════════════════════
+  # -------------------------------------------------------
   # Windows
-  # ═══════════════════════════════════════════════════════
+  # -------------------------------------------------------
   build-windows:
     strategy:
       matrix:
@@ -38,6 +38,9 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
+      - name: Install MinGW (C compiler for cgo)
+        run: choco install mingw -y --no-progress
+
       - name: Install Go dependencies
         run: go mod download
 
@@ -50,6 +53,7 @@ jobs:
       - name: Build Go binary
         run: |
           $env:CGO_ENABLED = "1"
+          $env:GOARCH = "${{ matrix.arch }}"
           go build `
             -tags desktop,production `
             -ldflags "-s -w -X 'github.com/rkriad585/PixalPeek/internal/cli.Version=${{ env.VERSION }}'" `
@@ -63,7 +67,7 @@ jobs:
 
       - name: Build NSIS installer
         run: |
-          makensis /DAPP_VERSION=${{ env.VERSION }} build/windows/installer.nsi
+          makensis /DAPP_VERSION=${{ env.VERSION }} /DAPP_NAME=pixalpeek /DAPP_ARCH=${{ matrix.arch }} build/windows/installer.nsi
           $installer = Get-ChildItem -Path "." -Filter "pixalpeek-Windows-*.exe" | Select-Object -First 1
           if ($installer) {
             Move-Item $installer.FullName -Destination dist/ -Force
@@ -71,11 +75,13 @@ jobs:
 
       - name: Rename to standard pattern
         run: |
-          $files = Get-ChildItem -Path dist/ -File
+          $files = Get-ChildItem -Path dist/ -File -Filter "*.exe"
           foreach ($f in $files) {
-            $ext = $f.Extension
-            if ($ext -eq ".exe" -and $f.BaseName -ne "${{ env.APP_NAME }}") {
-              $newName = "${{ env.APP_NAME }}-Windows-${{ matrix.arch }}.exe"
+            if ($f.BaseName -eq "${{ env.APP_NAME }}") {
+              continue
+            }
+            $newName = "${{ env.APP_NAME }}-Windows-${{ matrix.arch }}.exe"
+            if ($f.Name -ne $newName) {
               Rename-Item $f.FullName -NewName $newName -Force
               Write-Host "Renamed $($f.Name) -> $newName"
             }
@@ -87,9 +93,9 @@ jobs:
           name: windows-${{ matrix.arch }}
           path: dist/pixalpeek-Windows-${{ matrix.arch }}.exe
 
-  # ═══════════════════════════════════════════════════════
+  # -------------------------------------------------------
   # macOS
-  # ═══════════════════════════════════════════════════════
+  # -------------------------------------------------------
   build-macos:
     strategy:
       matrix:
@@ -119,17 +125,22 @@ jobs:
 
       - name: Build Go binary
         run: |
-          CGO_ENABLED=0 GOOS=darwin GOARCH=${{ matrix.arch }} \
-            go build -tags desktop,production \
-              -ldflags "-s -w -X 'github.com/rkriad585/PixalPeek/internal/cli.Version=${{ env.VERSION }}'" \
-              -o dist/${{ env.APP_NAME }}-darwin-${{ matrix.arch }} \
-              .
+          export CGO_ENABLED=1
+          export GOOS=darwin
+          export GOARCH=${{ matrix.arch }}
+          if [ "${{ matrix.arch }}" = "amd64" ]; then
+            export CGO_CFLAGS="-arch x86_64"
+            export CGO_LDFLAGS="-arch x86_64"
+          fi
+          go build -tags desktop,production \
+            -ldflags "-s -w -X 'github.com/rkriad585/PixalPeek/internal/cli.Version=${{ env.VERSION }}'" \
+            -o dist/${{ env.APP_NAME }}-darwin-${{ matrix.arch }} \
+            .
 
       - name: Create .app bundle
         run: |
           APP_DIR="dist/PixalPeek.app"
           mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
-
           cp dist/${{ env.APP_NAME }}-darwin-${{ matrix.arch }} "$APP_DIR/Contents/MacOS/${{ env.APP_NAME }}"
           chmod 755 "$APP_DIR/Contents/MacOS/${{ env.APP_NAME }}"
           cp build/appicon.png "$APP_DIR/Contents/Resources/appicon.png" 2>/dev/null || true
@@ -150,9 +161,9 @@ jobs:
           name: macos-${{ matrix.arch }}
           path: dist/pixalpeek-MacOS-${{ matrix.arch }}.dmg
 
-  # ═══════════════════════════════════════════════════════
+  # -------------------------------------------------------
   # Linux
-  # ═══════════════════════════════════════════════════════
+  # -------------------------------------------------------
   build-linux:
     strategy:
       matrix:
@@ -171,6 +182,11 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libgtk-4-dev libwebkitgtk-6.0-dev
+
       - name: Install Go dependencies
         run: go mod download
 
@@ -182,11 +198,13 @@ jobs:
 
       - name: Build Go binary
         run: |
-          CGO_ENABLED=0 GOOS=linux GOARCH=${{ matrix.arch }} \
-            go build -tags desktop,production \
-              -ldflags "-s -w -X 'github.com/rkriad585/PixalPeek/internal/cli.Version=${{ env.VERSION }}'" \
-              -o dist/${{ env.APP_NAME }} \
-              .
+          export CGO_ENABLED=1
+          export GOOS=linux
+          export GOARCH=${{ matrix.arch }}
+          go build -tags desktop,production \
+            -ldflags "-s -w -X 'github.com/rkriad585/PixalPeek/internal/cli.Version=${{ env.VERSION }}'" \
+            -o dist/${{ env.APP_NAME }} \
+            .
 
       - name: Build .deb package
         run: |
@@ -194,13 +212,10 @@ jobs:
           DEB_OUT="dist/${{ env.APP_NAME }}-Linux-${{ matrix.arch }}.deb"
           rm -rf "$DEB_DIR"
           mkdir -p "$DEB_DIR/DEBIAN" "$DEB_DIR/usr/local/bin"
-
           cp dist/${{ env.APP_NAME }} "$DEB_DIR/usr/local/bin/${{ env.APP_NAME }}"
           chmod 755 "$DEB_DIR/usr/local/bin/${{ env.APP_NAME }}"
-
           VERSION_CLEAN="${VERSION//-/.}"
           SIZE_KB=$(du -k "dist/${{ env.APP_NAME }}" | cut -f1)
-
           cat > "$DEB_DIR/DEBIAN/control" <<EOF
           Package: ${{ env.APP_NAME }}
           Version: $VERSION_CLEAN
@@ -215,16 +230,14 @@ jobs:
            and a full-featured CLI. Supports scanning, generating, batch
            processing, camera scan, clipboard decode, and more.
           EOF
-
           dpkg-deb --build "$DEB_DIR" "$DEB_OUT"
 
       - name: Build .rpm package
         run: |
-          sudo apt-get update && sudo apt-get install -y rpm
+          sudo apt-get install -y rpm
           RPM_DIR="dist/rpm-build"
           RPM_OUT="dist/${{ env.APP_NAME }}-Linux-${{ matrix.arch }}.rpm"
           mkdir -p "$RPM_DIR"/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
-
           VERSION_CLEAN="${VERSION//-/.}"
           cat > "$RPM_DIR/SPECS/${{ env.APP_NAME }}.spec" <<EOF
           Name:           ${{ env.APP_NAME }}
@@ -234,26 +247,20 @@ jobs:
           License:        MIT
           URL:            https://rkriad585.github.io/PixalPeek
           BuildArch:      ${{ matrix.arch }}
-
           %description
           PixalPeek is a dual-mode QR code tool with a GUI and full CLI.
-
           %install
           mkdir -p %{buildroot}/usr/local/bin
           cp dist/${{ env.APP_NAME }} %{buildroot}/usr/local/bin/${{ env.APP_NAME }}
           chmod 755 %{buildroot}/usr/local/bin/${{ env.APP_NAME }}
-
           %files
           /usr/local/bin/${{ env.APP_NAME }}
-
           %changelog
           * $(date "+%a %b %d %Y") rkriad585 <rkriad585@gmail.com> - $VERSION_CLEAN-1
           - Initial RPM release
           EOF
-
           rpmbuild -bb "$RPM_DIR/SPECS/${{ env.APP_NAME }}.spec" \
             --define "_topdir $RPM_DIR"
-
           RPM_FILE=$(find "$RPM_DIR/RPMS" -name "*.rpm" | head -1)
           if [ -n "$RPM_FILE" ]; then
             cp "$RPM_FILE" "$RPM_OUT"
@@ -267,9 +274,9 @@ jobs:
             dist/pixalpeek-Linux-${{ matrix.arch }}.deb
             dist/pixalpeek-Linux-${{ matrix.arch }}.rpm
 
-  # ═══════════════════════════════════════════════════════
+  # -------------------------------------------------------
   # Android
-  # ═══════════════════════════════════════════════════════
+  # -------------------------------------------------------
   build-android:
     strategy:
       matrix:
@@ -297,11 +304,6 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev
-
       - name: Install Go dependencies
         run: go mod download
 
@@ -322,9 +324,9 @@ jobs:
           name: android-${{ matrix.arch }}
           path: dist/pixalpeek-Android-${{ matrix.arch }}.apk
 
-  # ═══════════════════════════════════════════════════════
+  # -------------------------------------------------------
   # Release
-  # ═══════════════════════════════════════════════════════
+  # -------------------------------------------------------
   release:
     needs: [build-windows, build-macos, build-linux, build-android]
     runs-on: ubuntu-latest

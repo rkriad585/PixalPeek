@@ -5,8 +5,15 @@
 !include "FileFunc.nsh"
 
 ; ── Configuration ──────────────────────────────────────
-!define APP_NAME        "PixalPeek"
-!define APP_VERSION     "0.1.5-beta"
+!ifndef APP_NAME
+  !define APP_NAME        "PixalPeek"
+!endif
+!ifndef APP_VERSION
+  !define APP_VERSION     "0.1.5-beta"
+!endif
+!ifndef APP_ARCH
+  !define APP_ARCH        "amd64"
+!endif
 !define APP_PUBLISHER   "rkriad585"
 !define APP_URL         "https://rkriad585.github.io/PixalPeek"
 !define APP_EXE         "pixalpeek.exe"
@@ -16,7 +23,7 @@
 !define UNINSTALL_KEY   "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}"
 
 Name "${APP_NAME} ${APP_VERSION}"
-OutFile "pixalpeek-Windows-amd64.exe"
+OutFile "pixalpeek-Windows-${APP_ARCH}.exe"
 InstallDir "${INSTALL_DIR}"
 InstallDirRegKey HKCU "${INSTALL_DIR}" ""
 RequestExecutionLevel user
