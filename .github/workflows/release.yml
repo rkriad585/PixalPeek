@@ -461,6 +461,14 @@ jobs:
       - name: Download Go dependencies
         run: go mod download
 
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
       - name: Build Android binary
         shell: bash
         run: |
