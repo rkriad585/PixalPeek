@@ -12,6 +12,8 @@ permissions:
 env:
   APP_NAME: pixalpeek
   VERSION: ${{ github.ref_name }}
+  GO_VERSION: '1.23'
+  NODE_VERSION: '22'
 
 jobs:
   # ═══════════════════════════════════════════════════════
@@ -28,20 +30,23 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.23'
+          go-version: ${{ env.GO_VERSION }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-
-      - name: Setup NSIS
-        uses: samuelmeuli/action-setup-nsis@v1
-        with:
-          nsis-version: '3.10'
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Install Go dependencies
         run: go mod download
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v3/cmd/wails@latest
+
+      - name: Generate bindings
+        run: |
+          wails generate module
+          wails generate bindings
 
       - name: Build frontend
         working-directory: frontend
@@ -57,6 +62,11 @@ jobs:
             -ldflags "-s -w -X 'github.com/rkriad585/PixalPeek/internal/cli.Version=${{ env.VERSION }}'" `
             -o dist/${{ env.APP_NAME }}.exe `
             .
+
+      - name: Install NSIS
+        run: |
+          choco install nsis -y --no-progress
+          echo "C:\Program Files (x86)\NSIS" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Build NSIS installer
         run: |
@@ -98,15 +108,23 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.23'
+          go-version: ${{ env.GO_VERSION }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Install Go dependencies
         run: go mod download
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v3/cmd/wails@latest
+
+      - name: Generate bindings
+        run: |
+          wails generate module
+          wails generate bindings
 
       - name: Build frontend
         working-directory: frontend
@@ -161,15 +179,23 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.23'
+          go-version: ${{ env.GO_VERSION }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Install Go dependencies
         run: go mod download
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v3/cmd/wails@latest
+
+      - name: Generate bindings
+        run: |
+          wails generate module
+          wails generate bindings
 
       - name: Build frontend
         working-directory: frontend
@@ -278,7 +304,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.23'
+          go-version: ${{ env.GO_VERSION }}
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -289,18 +315,26 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install Go dependencies
+        run: go mod download
+
       - name: Install Wails CLI
         run: |
           go install github.com/wailsapp/wails/v3/cmd/wails@latest
           echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
+      - name: Verify Wails CLI
+        run: wails doctor
 
-      - name: Install Go dependencies
-        run: go mod download
+      - name: Generate bindings
+        run: |
+          wails generate module
+          wails generate bindings
 
       - name: Build frontend
         working-directory: frontend
