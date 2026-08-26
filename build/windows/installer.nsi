@@ -29,8 +29,8 @@ InstallDirRegKey HKCU "${INSTALL_DIR}" ""
 RequestExecutionLevel user
 
 ; ── Interface ──────────────────────────────────────────
-!define MUI_ICON              "..\..\build\appicon.png"
-!define MUI_UNICON            "..\..\build\appicon.png"
+!define MUI_ICON              "..\..\build\appicon.ico"
+!define MUI_UNICON            "..\..\build\appicon.ico"
 !define MUI_ABORTWARNING
 !define MUI_WELCOMEPAGE_TITLE "Welcome to ${APP_NAME} Setup"
 !define MUI_WELCOMEPAGE_TEXT  "This will install ${APP_NAME} ${APP_VERSION}.$\r$\n$\r$\n${APP_DESC}"

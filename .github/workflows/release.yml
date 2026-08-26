@@ -1,27 +1,66 @@
-name: Build & Release
+﻿name: Build & Release
 
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
+
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to build (example: 1.2.3). Leave empty for automatic CI version."
+        required: false
+        type: string
 
 permissions:
   contents: write
 
 env:
   APP_NAME: pixalpeek
-  VERSION: ${{ github.ref_name }}
-  GO_VERSION: '1.26'
-  WAILS_VERSION: 'v3.0.0-beta.2'
-  NODE_VERSION: '22'
+  GO_VERSION: "1.26"
+  WAILS_VERSION: "v3.0.0-beta.2"
+  NODE_VERSION: "22"
 
 jobs:
-  # -------------------------------------------------------
+
+  # ═══════════════════════════════════════════════════════
+  # Resolve version
+  # ═══════════════════════════════════════════════════════
+
+  version:
+    name: Resolve version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Resolve application version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          elif [[ -n "${{ inputs.version }}" ]]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="0.0.0-ci.${GITHUB_RUN_NUMBER}"
+          fi
+          if [[ ! "$VERSION" =~ ^[0-9]+(\.[0-9]+)*([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid version: $VERSION"
+            exit 1
+          fi
+          echo "Resolved version: ${VERSION}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+  # ═══════════════════════════════════════════════════════
   # Windows
-  # -------------------------------------------------------
+  # ═══════════════════════════════════════════════════════
+
   build-windows:
+    name: Windows ${{ matrix.arch }}
+    needs: version
     strategy:
+      fail-fast: false
       matrix:
         include:
           - arch: amd64
@@ -30,84 +69,99 @@ jobs:
             os: windows-11-arm
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
+          cache: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Install MinGW (C compiler for cgo)
+      - name: Install MinGW
         if: matrix.arch == 'amd64'
+        shell: pwsh
         run: choco install mingw -y --no-progress
 
-      - name: Use clang for arm64 cgo
+      - name: Configure ARM64 compiler
         if: matrix.arch == 'arm64'
+        shell: pwsh
         run: |
           echo "CC=clang" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           echo "CXX=clang++" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-      - name: Install Go dependencies
+      - name: Download Go dependencies
         run: go mod download
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
 
       - name: Build frontend
         working-directory: frontend
-        run: |
-          npm ci
-          npm run build
+        run: npm run build
 
-      - name: Build Go binary
+      - name: Build Windows binary
+        shell: pwsh
         run: |
           $env:CGO_ENABLED = "1"
           go build `
             -tags desktop,production `
-            -ldflags "-s -w -X 'github.com/rkriad585/PixalPeek/internal/cli.Version=${{ env.VERSION }}'" `
-            -o dist/${{ env.APP_NAME }}.exe `
+            -ldflags "-s -w -X 'github.com/rkriad585/PixalPeek/internal/cli.Version=${{ needs.version.outputs.version }}'" `
+            -o "dist/${{ env.APP_NAME }}.exe" `
             .
 
       - name: Install NSIS
+        shell: pwsh
         run: |
           choco install nsis -y --no-progress
           echo "C:\Program Files (x86)\NSIS" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Build NSIS installer
+        shell: pwsh
         run: |
-          makensis /DAPP_VERSION=${{ env.VERSION }} build/windows/installer.nsi
-          $installer = Get-ChildItem -Path "." -Filter "pixalpeek-Windows-*.exe" | Select-Object -First 1
-          if ($installer) {
-            Move-Item $installer.FullName -Destination dist/ -Force
-          }
+          makensis `
+            /DAPP_VERSION="${{ needs.version.outputs.version }}" `
+            /DAPP_NAME="${{ env.APP_NAME }}" `
+            /DAPP_ARCH="${{ matrix.arch }}" `
+            build/windows/installer.nsi
 
-      - name: Rename to standard pattern
+      - name: Normalize artifact name
+        id: installer
+        shell: pwsh
         run: |
-          $files = Get-ChildItem -Path dist/ -File -Filter "*.exe"
-          foreach ($f in $files) {
-            if ($f.BaseName -eq "${{ env.APP_NAME }}") {
-              continue
-            }
-            $newName = "${{ env.APP_NAME }}-Windows-${{ matrix.arch }}.exe"
-            if ($f.Name -ne $newName) {
-              Rename-Item $f.FullName -NewName $newName -Force
-              Write-Host "Renamed $($f.Name) -> $newName"
-            }
+          $installer = Get-ChildItem -Path "." -Filter "*.exe" -File |
+            Where-Object { $_.FullName -notlike "*\dist\${{ env.APP_NAME }}.exe" } |
+            Select-Object -First 1
+          if (!$installer) {
+            Write-Error "NSIS installer was not found."
+            exit 1
           }
+          $output = "dist/${{ env.APP_NAME }}-Windows-${{ matrix.arch }}.exe"
+          Move-Item $installer.FullName $output -Force
+          Write-Host "Installer: $output"
 
-      - name: Upload artifact
+      - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
           name: windows-${{ matrix.arch }}
-          path: dist/pixalpeek-Windows-${{ matrix.arch }}.exe
+          path: dist/${{ env.APP_NAME }}-Windows-${{ matrix.arch }}.exe
+          if-no-files-found: error
 
-  # -------------------------------------------------------
+  # ═══════════════════════════════════════════════════════
   # macOS
-  # -------------------------------------------------------
+  # ═══════════════════════════════════════════════════════
+
   build-macos:
+    name: macOS ${{ matrix.arch }}
+    needs: version
     strategy:
+      fail-fast: false
       matrix:
         include:
           - arch: arm64
@@ -116,48 +170,60 @@ jobs:
             os: macos-13
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
+          cache: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Install Go dependencies
+      - name: Download Go dependencies
         run: go mod download
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
 
       - name: Build frontend
         working-directory: frontend
-        run: |
-          npm ci
-          npm run build
+        run: npm run build
 
-      - name: Build Go binary
+      - name: Build macOS binary
+        shell: bash
         run: |
+          set -euo pipefail
           export CGO_ENABLED=1
           export GOOS=darwin
-          export GOARCH=${{ matrix.arch }}
-          go build -tags desktop,production \
-            -ldflags "-s -w -X 'github.com/rkriad585/PixalPeek/internal/cli.Version=${{ env.VERSION }}'" \
-            -o dist/${{ env.APP_NAME }}-darwin-${{ matrix.arch }} \
+          export GOARCH="${{ matrix.arch }}"
+          go build \
+            -tags desktop,production \
+            -ldflags "-s -w -X 'github.com/rkriad585/PixalPeek/internal/cli.Version=${{ needs.version.outputs.version }}'" \
+            -o "dist/${{ env.APP_NAME }}-darwin-${{ matrix.arch }}" \
             .
 
-      - name: Create .app bundle
+      - name: Create application bundle
+        shell: bash
         run: |
+          set -euo pipefail
           APP_DIR="dist/PixalPeek.app"
+          rm -rf "$APP_DIR"
           mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
-          cp dist/${{ env.APP_NAME }}-darwin-${{ matrix.arch }} "$APP_DIR/Contents/MacOS/${{ env.APP_NAME }}"
+          cp "dist/${{ env.APP_NAME }}-darwin-${{ matrix.arch }}" "$APP_DIR/Contents/MacOS/${{ env.APP_NAME }}"
           chmod 755 "$APP_DIR/Contents/MacOS/${{ env.APP_NAME }}"
-          cp build/appicon.png "$APP_DIR/Contents/Resources/appicon.png" 2>/dev/null || true
+          cp build/appicon.png "$APP_DIR/Contents/Resources/appicon.png"
           cp build/macos/Info.plist "$APP_DIR/Contents/Info.plist"
 
-      - name: Create .dmg
+      - name: Create DMG
+        shell: bash
         run: |
+          set -euo pipefail
           hdiutil create \
             -volname "PixalPeek" \
             -srcfolder "dist/PixalPeek.app" \
@@ -165,150 +231,196 @@ jobs:
             -format UDZO \
             "dist/${{ env.APP_NAME }}-MacOS-${{ matrix.arch }}.dmg"
 
-      - name: Upload artifact
+      - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
         with:
           name: macos-${{ matrix.arch }}
-          path: dist/pixalpeek-MacOS-${{ matrix.arch }}.dmg
+          path: dist/${{ env.APP_NAME }}-MacOS-${{ matrix.arch }}.dmg
+          if-no-files-found: error
 
-  # -------------------------------------------------------
+  # ═══════════════════════════════════════════════════════
   # Linux
-  # -------------------------------------------------------
+  # ═══════════════════════════════════════════════════════
+
   build-linux:
+    name: Linux ${{ matrix.arch }}
+    needs: version
     strategy:
+      fail-fast: false
       matrix:
         include:
           - arch: amd64
-            os: ubuntu-latest
+            os: ubuntu-24.04
           - arch: arm64
             os: ubuntu-24.04-arm
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
+          cache: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Install system dependencies
+      - name: Install Linux build dependencies
+        shell: bash
         run: |
+          set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y pkg-config libgtk-4-dev libwebkitgtk-6.0-dev
+          sudo apt-get install -y \
+            build-essential \
+            pkg-config \
+            libgtk-4-dev \
+            libwebkitgtk-6.0-dev
 
-      - name: Install Go dependencies
+      - name: Verify GTK/WebKitGTK
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "GTK4: $(pkg-config --modversion gtk4)"
+          echo "WebKitGTK: $(pkg-config --modversion webkitgtk-6.0)"
+
+      - name: Download Go dependencies
         run: go mod download
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
 
       - name: Build frontend
         working-directory: frontend
-        run: |
-          npm ci
-          npm run build
+        run: npm run build
 
-      - name: Build Go binary
+      - name: Build Linux binary
+        shell: bash
         run: |
+          set -euo pipefail
           export CGO_ENABLED=1
           export GOOS=linux
-          export GOARCH=${{ matrix.arch }}
-          go build -tags desktop,production \
-            -ldflags "-s -w -X 'github.com/rkriad585/PixalPeek/internal/cli.Version=${{ env.VERSION }}'" \
-            -o dist/${{ env.APP_NAME }} \
+          export GOARCH="${{ matrix.arch }}"
+          go build \
+            -tags desktop,production \
+            -ldflags "-s -w -X 'github.com/rkriad585/PixalPeek/internal/cli.Version=${{ needs.version.outputs.version }}'" \
+            -o "dist/${{ env.APP_NAME }}" \
             .
 
-      - name: Build .deb package
+      - name: Build Debian package
+        shell: bash
         run: |
+          set -euo pipefail
           DEB_DIR="dist/deb-pkg"
           DEB_OUT="dist/${{ env.APP_NAME }}-Linux-${{ matrix.arch }}.deb"
+          VERSION_CLEAN="${{ needs.version.outputs.version }}"
+          VERSION_CLEAN="${VERSION_CLEAN#v}"
+          VERSION_CLEAN="${VERSION_CLEAN//-/.}"
           rm -rf "$DEB_DIR"
           mkdir -p "$DEB_DIR/DEBIAN" "$DEB_DIR/usr/local/bin"
-          cp dist/${{ env.APP_NAME }} "$DEB_DIR/usr/local/bin/${{ env.APP_NAME }}"
+          cp "dist/${{ env.APP_NAME }}" "$DEB_DIR/usr/local/bin/${{ env.APP_NAME }}"
           chmod 755 "$DEB_DIR/usr/local/bin/${{ env.APP_NAME }}"
-          VERSION_CLEAN="${VERSION//-/.}"
           SIZE_KB=$(du -k "dist/${{ env.APP_NAME }}" | cut -f1)
           cat > "$DEB_DIR/DEBIAN/control" <<EOF
           Package: ${{ env.APP_NAME }}
-          Version: $VERSION_CLEAN
+          Version: ${VERSION_CLEAN}
           Section: utils
           Priority: optional
           Architecture: ${{ matrix.arch }}
           Maintainer: rkriad585 <rkriad585@gmail.com>
           Homepage: https://rkriad585.github.io/PixalPeek
-          Installed-Size: $SIZE_KB
-          Description: Dot-matrix QR code scanner & generator
-           PixalPeek is a dual-mode QR code tool with a GUI (Wails v3)
-           and a full-featured CLI. Supports scanning, generating, batch
-           processing, camera scan, clipboard decode, and more.
+          Installed-Size: ${SIZE_KB}
+          Description: Dot-matrix QR code scanner and generator
+           PixalPeek is a dual-mode QR code tool with a GUI and CLI.
+           Supports scanning, generating, batch processing, camera scan,
+           clipboard decoding, and more.
           EOF
           dpkg-deb --build "$DEB_DIR" "$DEB_OUT"
 
-      - name: Build .rpm package
+      - name: Build RPM package
+        shell: bash
         run: |
+          set -euo pipefail
           sudo apt-get install -y rpm
           RPM_DIR="dist/rpm-build"
           RPM_OUT="dist/${{ env.APP_NAME }}-Linux-${{ matrix.arch }}.rpm"
-          mkdir -p "$RPM_DIR"/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
-          VERSION_CLEAN="${VERSION//-/.}"
+          VERSION_CLEAN="${{ needs.version.outputs.version }}"
+          VERSION_CLEAN="${VERSION_CLEAN#v}"
+          VERSION_CLEAN="${VERSION_CLEAN//-/.}"
+          rm -rf "$RPM_DIR"
+          mkdir -p "$RPM_DIR/BUILD" "$RPM_DIR/RPMS" "$RPM_DIR/SOURCES" "$RPM_DIR/SPECS" "$RPM_DIR/SRPMS"
           cat > "$RPM_DIR/SPECS/${{ env.APP_NAME }}.spec" <<EOF
           Name:           ${{ env.APP_NAME }}
-          Version:        $VERSION_CLEAN
+          Version:        ${VERSION_CLEAN}
           Release:        1%{?dist}
-          Summary:        Dot-matrix QR code scanner & generator
+          Summary:        Dot-matrix QR code scanner and generator
           License:        MIT
           URL:            https://rkriad585.github.io/PixalPeek
           BuildArch:      ${{ matrix.arch }}
+
           %description
           PixalPeek is a dual-mode QR code tool with a GUI and full CLI.
+
           %install
           mkdir -p %{buildroot}/usr/local/bin
-          cp dist/${{ env.APP_NAME }} %{buildroot}/usr/local/bin/${{ env.APP_NAME }}
+          cp "${PWD}/dist/${{ env.APP_NAME }}" %{buildroot}/usr/local/bin/${{ env.APP_NAME }}
           chmod 755 %{buildroot}/usr/local/bin/${{ env.APP_NAME }}
+
           %files
           /usr/local/bin/${{ env.APP_NAME }}
+
           %changelog
-          * $(date "+%a %b %d %Y") rkriad585 <rkriad585@gmail.com> - $VERSION_CLEAN-1
+          * $(date "+%a %b %d %Y") rkriad585 <rkriad585@gmail.com> - ${VERSION_CLEAN}-1
           - Initial RPM release
           EOF
-          rpmbuild -bb "$RPM_DIR/SPECS/${{ env.APP_NAME }}.spec" \
-            --define "_topdir $RPM_DIR"
-          RPM_FILE=$(find "$RPM_DIR/RPMS" -name "*.rpm" | head -1)
-          if [ -n "$RPM_FILE" ]; then
+          rpmbuild -bb "$RPM_DIR/SPECS/${{ env.APP_NAME }}.spec" --define "_topdir ${PWD}/${RPM_DIR}"
+          RPM_FILE=$(find "$RPM_DIR/RPMS" -type f -name "*.rpm" | head -n 1)
+          if [[ -n "$RPM_FILE" ]]; then
             cp "$RPM_FILE" "$RPM_OUT"
           fi
 
-      - name: Upload artifacts
+      - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
         with:
           name: linux-${{ matrix.arch }}
           path: |
-            dist/pixalpeek-Linux-${{ matrix.arch }}.deb
-            dist/pixalpeek-Linux-${{ matrix.arch }}.rpm
+            dist/${{ env.APP_NAME }}-Linux-${{ matrix.arch }}.deb
+            dist/${{ env.APP_NAME }}-Linux-${{ matrix.arch }}.rpm
+          if-no-files-found: error
 
-  # -------------------------------------------------------
+  # ═══════════════════════════════════════════════════════
   # Android
-  # -------------------------------------------------------
+  # ═══════════════════════════════════════════════════════
+
   build-android:
+    name: Android ${{ matrix.arch }}
+    needs: version
     strategy:
+      fail-fast: false
       matrix:
-        arch: [arm64, armeabi-v7a]
-    runs-on: ubuntu-latest
+        arch:
+          - arm64
+          - armeabi-v7a
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
+          cache: true
 
       - name: Setup Java
         uses: actions/setup-java@v5
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          distribution: temurin
+          java-version: "17"
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
@@ -318,59 +430,81 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Install Go dependencies
+      - name: Install Linux build dependencies for wails3 CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y \
+            pkg-config \
+            libgtk-4-dev \
+            libwebkitgtk-6.0-dev
+
+      - name: Download Go dependencies
         run: go mod download
 
       - name: Install Wails CLI
+        shell: bash
         run: |
           go install github.com/wailsapp/wails/v3/cmd/wails3@${{ env.WAILS_VERSION }}
-          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: Build APK
+        shell: bash
         run: |
+          set -euo pipefail
+          mkdir -p dist
           wails3 build \
             -platform "android/${{ matrix.arch }}" \
             -o "dist/${{ env.APP_NAME }}-Android-${{ matrix.arch }}.apk"
 
-      - name: Upload artifact
+      - name: Upload Android artifact
         uses: actions/upload-artifact@v4
         with:
           name: android-${{ matrix.arch }}
-          path: dist/pixalpeek-Android-${{ matrix.arch }}.apk
+          path: dist/${{ env.APP_NAME }}-Android-${{ matrix.arch }}.apk
+          if-no-files-found: error
 
-  # -------------------------------------------------------
+  # ═══════════════════════════════════════════════════════
   # Release
-  # -------------------------------------------------------
+  # ═══════════════════════════════════════════════════════
+
   release:
-    needs: [build-windows, build-macos, build-linux, build-android]
+    name: GitHub Release
+    needs:
+      - version
+      - build-windows
+      - build-macos
+      - build-linux
+      - build-android
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
           merge-multiple: true
 
-      - name: List artifacts
-        run: ls -la artifacts/
+      - name: List release artifacts
+        shell: bash
+        run: find artifacts -type f -maxdepth 2 -print | sort
 
-      - name: Create Release
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: "PixalPeek ${{ env.VERSION }}"
+          tag_name: v${{ needs.version.outputs.version }}
+          name: "PixalPeek ${{ needs.version.outputs.version }}"
           draft: false
           prerelease: true
           generate_release_notes: true
           files: |
-            artifacts/pixalpeek-Windows-amd64.exe
-            artifacts/pixalpeek-Windows-arm64.exe
-            artifacts/pixalpeek-MacOS-arm64.dmg
-            artifacts/pixalpeek-MacOS-amd64.dmg
-            artifacts/pixalpeek-Linux-amd64.deb
-            artifacts/pixalpeek-Linux-amd64.rpm
-            artifacts/pixalpeek-Linux-arm64.deb
-            artifacts/pixalpeek-Linux-arm64.rpm
-            artifacts/pixalpeek-Android-arm64.apk
-            artifacts/pixalpeek-Android-armeabi-v7a.apk
+            artifacts/${{ env.APP_NAME }}-Windows-amd64.exe
+            artifacts/${{ env.APP_NAME }}-Windows-arm64.exe
+            artifacts/${{ env.APP_NAME }}-MacOS-arm64.dmg
+            artifacts/${{ env.APP_NAME }}-MacOS-amd64.dmg
+            artifacts/${{ env.APP_NAME }}-Linux-amd64.deb
+            artifacts/${{ env.APP_NAME }}-Linux-amd64.rpm
+            artifacts/${{ env.APP_NAME }}-Linux-arm64.deb
+            artifacts/${{ env.APP_NAME }}-Linux-arm64.rpm
+            artifacts/${{ env.APP_NAME }}-Android-arm64.apk
+            artifacts/${{ env.APP_NAME }}-Android-armeabi-v7a.apk
