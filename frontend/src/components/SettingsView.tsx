@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { QRService, type Settings } from "../lib/api";
+import { QRService, type Settings, type Preset } from "../lib/api";
 
 type Theme = "dark" | "light";
 
@@ -174,7 +174,7 @@ export default function SettingsView({ onToast }: Props) {
         <div className="kv"><span className="k">VERSION</span><span>{version}</span></div>
         <div className="kv">
           <span className="k">SAVED PRESETS</span>
-          <span>{(s.presets || []).map((p) => p.name).join(", ") || "—"}</span>
+          <span>{(s.presets || []).map((p: Preset) => p.name).join(", ") || "—"}</span>
         </div>
         <div className="kv">
           <span className="k">THEME</span>

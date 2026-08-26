@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { QRService, type ScanResponse, type SafetyAssessment, type HistoryEntry } from "../lib/api";
+import { QRService, type ScanResponse, type SafetyAssessment, type HistoryEntry, type DecodeResult } from "../lib/api";
 import { readClipboardImageB64 } from "../lib/api";
 import { parseWifi, vibrate } from "../lib/formats";
 import CameraPanel from "./CameraPanel";
@@ -206,7 +206,7 @@ export default function ScannerView({ onToast }: Props) {
         )}
         {error && <div className="error-text">✖ {error}</div>}
         {result?.success &&
-          result.results.map((r, i) => (
+          result.results.map((r: DecodeResult, i: number) => (
             <>
             <div className="result-card" key={i}>
               <div className="result-head">
@@ -229,7 +229,7 @@ export default function ScannerView({ onToast }: Props) {
                   <div className="security-details">
                     <strong>SECURITY WARNING</strong>
                     <span className="security-score">Risk Score: {r.security.score}/100{r.security.is_shortener ? " · URL SHORTENER" : ""}</span>
-                    {r.security.reasons.map((reason, j) => (
+                    {r.security.reasons.map((reason: string, j: number) => (
                       <span key={j} className="security-reason">{reason}</span>
                     ))}
                   </div>
