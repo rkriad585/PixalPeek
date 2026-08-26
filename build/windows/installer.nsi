@@ -23,7 +23,7 @@
 !define UNINSTALL_KEY   "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}"
 
 Name "${APP_NAME} ${APP_VERSION}"
-OutFile "pixalpeek-windows-${APP_ARCH}.exe"
+OutFile "..\..\pixalpeek-windows-${APP_ARCH}.exe"
 InstallDir "${INSTALL_DIR}"
 InstallDirRegKey HKCU "${INSTALL_DIR}" ""
 RequestExecutionLevel user

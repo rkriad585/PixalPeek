@@ -43,7 +43,7 @@ jobs:
           elif [[ -n "${{ inputs.version }}" ]]; then
             VERSION="${{ inputs.version }}"
           else
-            VERSION="0.0.0-ci.${GITHUB_RUN_NUMBER}"
+            VERSION="0.1.5-beta"
           fi
           if [[ ! "$VERSION" =~ ^[0-9]+(\.[0-9]+)*([.-][0-9A-Za-z.-]+)?$ ]]; then
             echo "Invalid version: $VERSION"
@@ -129,7 +129,6 @@ jobs:
         run: |
           makensis `
             /DAPP_VERSION="${{ needs.version.outputs.version }}" `
-            /DAPP_NAME="${{ env.APP_NAME }}" `
             /DAPP_ARCH="${{ matrix.arch }}" `
             build/windows/installer.nsi
 
