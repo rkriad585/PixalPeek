@@ -102,7 +102,7 @@ if (-not $androidHome) {
 
 if (Test-Path $androidHome) {
     Write-Host "  Android SDK: $androidHome" -ForegroundColor Gray
-    Write-Host "  To build APK, run: wails build -platform android/arm64 -o $outDir\pixalpeek-android-arm64.apk" -ForegroundColor Yellow
+    Write-Host "  To build APK, run: wails build -platform android/arm64 -o $outDir\pixalpeek-android-arm64" -ForegroundColor Yellow
 } else {
     Write-Host "  Android SDK not found, skipping APK build" -ForegroundColor Yellow
     Write-Host "  Install Android SDK and run: wails build -platform android/arm64" -ForegroundColor Gray

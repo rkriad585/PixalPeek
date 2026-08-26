@@ -289,7 +289,7 @@ build_android() {
 
     # Build for both arm64 and armeabi-v7a
     for ARCH in arm64 armeabi-v7a; do
-        local APK_OUT="$OUT_DIR/${APP_NAME}-android-${ARCH}.apk"
+        local APK_OUT="$OUT_DIR/${APP_NAME}-android-${ARCH}"
         log "  Building for android/$ARCH..."
 
         wails build -platform "android/$ARCH" -o "$APK_OUT" 2>/dev/null && {

@@ -357,6 +357,11 @@ jobs:
           VERSION_CLEAN="${{ needs.version.outputs.version }}"
           VERSION_CLEAN="${VERSION_CLEAN#v}"
           VERSION_CLEAN="${VERSION_CLEAN//-/.}"
+          case "${{ matrix.arch }}" in
+            amd64)  RPM_ARCH="x86_64" ;;
+            arm64)  RPM_ARCH="aarch64" ;;
+            *)      echo "Unsupported arch: ${{ matrix.arch }}"; exit 1 ;;
+          esac
           rm -rf "$RPM_DIR"
           mkdir -p "$RPM_DIR/BUILD" "$RPM_DIR/RPMS" "$RPM_DIR/SOURCES" "$RPM_DIR/SPECS" "$RPM_DIR/SRPMS"
           cat > "$RPM_DIR/SPECS/${{ env.APP_NAME }}.spec" <<EOF
@@ -366,7 +371,7 @@ jobs:
           Summary:        Dot-matrix QR code scanner and generator
           License:        MIT
           URL:            https://rkriad585.github.io/PixalPeek
-          BuildArch:      ${{ matrix.arch }}
+          BuildArch:      ${RPM_ARCH}
 
           %description
           PixalPeek is a dual-mode QR code tool with a GUI and full CLI.
@@ -446,29 +451,46 @@ jobs:
             libgtk-4-dev \
             libwebkitgtk-6.0-dev
 
+      - name: Install Android NDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --install "ndk;27.0.12077973" 2>/dev/null || true
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> "$GITHUB_ENV"
+
       - name: Download Go dependencies
         run: go mod download
 
-      - name: Install Wails CLI
-        shell: bash
-        run: |
-          go install github.com/wailsapp/wails/v3/cmd/wails3@${{ env.WAILS_VERSION }}
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
-
-      - name: Build APK
+      - name: Build Android binary
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p dist
-          wails3 build \
-            -platform "android/${{ matrix.arch }}" \
-            -o "dist/${{ env.APP_NAME }}-android-${{ matrix.arch }}.apk"
+          export CGO_ENABLED=1
+          export GOOS=android
+          NDK_BIN="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          case "${{ matrix.arch }}" in
+            arm64)
+              export GOARCH=arm64
+              export CC="$NDK_BIN/aarch64-linux-android35-clang"
+              ;;
+            armeabi-v7a)
+              export GOARCH=arm
+              export GOARM=7
+              export CC="$NDK_BIN/armv7a-linux-androideabi35-clang"
+              ;;
+          esac
+          go build \
+            -tags desktop,production \
+            -ldflags "-s -w -X 'github.com/rkriad585/PixalPeek/internal/cli.Version=${{ needs.version.outputs.version }}'" \
+            -o "dist/${{ env.APP_NAME }}-android-${{ matrix.arch }}" \
+            .
 
       - name: Upload Android artifact
         uses: actions/upload-artifact@v4
         with:
           name: android-${{ matrix.arch }}
-          path: dist/${{ env.APP_NAME }}-android-${{ matrix.arch }}.apk
+          path: dist/${{ env.APP_NAME }}-android-${{ matrix.arch }}
           if-no-files-found: error
 
   # ═══════════════════════════════════════════════════════
@@ -512,5 +534,5 @@ jobs:
             artifacts/${{ env.APP_NAME }}-linux-amd64.rpm
             artifacts/${{ env.APP_NAME }}-arm-linux-arm64.deb
             artifacts/${{ env.APP_NAME }}-arm-linux-arm64.rpm
-            artifacts/${{ env.APP_NAME }}-android-arm64.apk
-            artifacts/${{ env.APP_NAME }}-android-armeabi-v7a.apk
+            artifacts/${{ env.APP_NAME }}-android-arm64
+            artifacts/${{ env.APP_NAME }}-android-armeabi-v7a
