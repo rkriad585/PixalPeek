@@ -124,6 +124,7 @@ func runGUI() {
 		AlwaysOnTop:      true,
 		BackgroundColour: application.NewRGBA(10, 10, 11, 255),
 		URL:              "/?splash=1",
+		Windows:          application.WindowsWindow{NonClientRegionSupport: true},
 	})
 	splashWin.Center()
 
@@ -155,6 +156,7 @@ func createMainWindow(w, h int, cfg storage.AppConfig) {
 		Frameless:        true,
 		BackgroundColour: application.NewRGBA(10, 10, 11, 255),
 		URL:              "/",
+		Windows:          application.WindowsWindow{NonClientRegionSupport: true},
 	}
 	if restorePos {
 		winOpts.X = cfg.WindowX
