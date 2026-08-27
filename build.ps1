@@ -18,6 +18,13 @@ Write-Host "[0/5] Checking prerequisites..." -ForegroundColor Cyan
 $go = Get-Command go -ErrorAction SilentlyContinue
 if (-not $go) { Write-Error "Go not found. Install from https://go.dev/dl/"; exit 1 }
 
+$wails = Get-Command wails3 -ErrorAction SilentlyContinue
+if (-not $wails) {
+    Write-Host "  Wails v3 CLI not found. Installing..." -ForegroundColor Yellow
+    go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.14
+    if ($LASTEXITCODE -ne 0) { Write-Error "Failed to install wails3 CLI"; exit 1 }
+}
+
 $nsis = Get-Command makensis -ErrorAction SilentlyContinue
 if (-not $nsis) {
     # Check common NSIS install paths
@@ -50,25 +57,22 @@ if (-not $nsis) {
 }
 
 Write-Host "  Go:     $(go version)" -ForegroundColor Gray
+Write-Host "  Wails:  $(wails3 version 2>$null)" -ForegroundColor Gray
 Write-Host "  NSIS:   $nsis" -ForegroundColor Gray
 
 # ── Ensure directories ──────────────────────────────────
 if (-not (Test-Path $distDir))  { New-Item -ItemType Directory -Path $distDir  -Force | Out-Null }
 if (-not (Test-Path $outDir))   { New-Item -ItemType Directory -Path $outDir   -Force | Out-Null }
 
-# ── Build frontend ──────────────────────────────────────
-Write-Host "[1/5] Building frontend..." -ForegroundColor Cyan
-Push-Location frontend
-npm install --silent 2>$null
-npm run build
-Pop-Location
-Write-Host "  Frontend built" -ForegroundColor Gray
-
-# ── Build Go binary ─────────────────────────────────────
-Write-Host "[2/5] Building Go binary (windows/amd64)..." -ForegroundColor Cyan
+# ── Build with wails3 (handles frontend + bindings + icon embedding) ──
+Write-Host "[1/5] Building with wails3 (windows/amd64)..." -ForegroundColor Cyan
 $env:CGO_ENABLED = "1"
-go build -tags desktop,production -ldflags "-s -w -X 'github.com/rkriad585/PixalPeek/internal/cli.Version=$version'" -o "$distDir\pixalpeek.exe" .
-if ($LASTEXITCODE -ne 0) { Write-Error "Go build failed"; exit 1 }
+wails3 build
+if ($LASTEXITCODE -ne 0) { Write-Error "wails3 build failed"; exit 1 }
+
+# wails3 outputs to bin/
+if (-not (Test-Path "$distDir")) { New-Item -ItemType Directory -Path $distDir -Force | Out-Null }
+Copy-Item "bin\pixalpeek.exe" "$distDir\pixalpeek.exe" -Force
 
 $exeSize = [math]::Round((Get-Item "$distDir\pixalpeek.exe").Length / 1MB, 2)
 Write-Host "  Built: pixalpeek.exe ($exeSize MB)" -ForegroundColor Gray

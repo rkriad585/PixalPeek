@@ -60,26 +60,23 @@ if ! command -v go &>/dev/null; then err "Go not found. Install from https://go.
 if ! command -v node &>/dev/null; then err "Node.js not found. Install from https://nodejs.org/"; fi
 if ! command -v npm &>/dev/null; then err "npm not found."; fi
 
+if ! command -v wails3 &>/dev/null; then
+    warn "  Wails v3 CLI not found. Installing..."
+    go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.14
+    command -v wails3 &>/dev/null || err "Failed to install wails3 CLI"
+fi
+
 echo -e "  Go:     $(go version)"  "$GRAY"
+echo -e "  Wails:  $(wails3 version 2>/dev/null)" "$GRAY"
 echo -e "  Node:   $(node --version)" "$GRAY"
 echo ""
 
 mkdir -p "$DIST_DIR" "$OUT_DIR"
 
-# ── Build frontend ──────────────────────────────────────
-log "[1/6] Building frontend..."
-cd "$SCRIPT_DIR/frontend"
-npm install --silent 2>/dev/null || true
-npm run build
-cd "$SCRIPT_DIR"
-ok "  Frontend built"
-echo ""
-
-# ── Build Go binary for host ───────────────────────────
-log "[2/6] Building Go binary for host..."
-go build -tags desktop,production -ldflags "-s -w -X 'github.com/rkriad585/PixalPeek/internal/cli.Version=$VERSION'" \
-    -o "$DIST_DIR/$APP_NAME" .
-ok "  Built: $DIST_DIR/$APP_NAME ($(du -h "$DIST_DIR/$APP_NAME" | cut -f1))"
+# ── Build with wails3 (handles frontend + bindings + icon embedding) ──
+log "[1/6] Building with wails3 (host)..."
+wails3 build
+ok "  Built: bin/$APP_NAME ($(du -h "bin/$APP_NAME" | cut -f1))"
 echo ""
 
 # ══════════════════════════════════════════════════════
@@ -97,8 +94,8 @@ build_linux() {
 
     # ── Cross-compile if on macOS building for Linux
     if [ "$(uname -s)" = "Linux" ]; then
-        # Already built above
-        BINARY="$DIST_DIR/$APP_NAME"
+        # Already built above by wails3
+        BINARY="bin/$APP_NAME"
     else
         log "  Cross-compiling linux/$ARCH..."
         CGO_ENABLED=0 GOOS=linux GOARCH="$ARCH" \

@@ -53,18 +53,20 @@ Section "Install" SecInstall
     SetShellVarContext current
 
     File "..\..\dist\pixalpeek.exe"
+    File "..\appicon.ico"
 
     ; Write uninstaller
     WriteUninstaller "$INSTDIR\uninstall.exe"
 
     ; Start Menu shortcuts
     CreateDirectory "$SMPROGRAMS\${APP_NAME}"
-    CreateShortcut "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk" "$INSTDIR\${APP_EXE}"
+    CreateShortcut "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk" "$INSTDIR\${APP_EXE}" "" "$INSTDIR\appicon.ico" 0
     CreateShortcut "$SMPROGRAMS\${APP_NAME}\Uninstall.lnk" "$INSTDIR\uninstall.exe"
 
-    ; Registry (for uninstaller)
+    ; Registry (for uninstaller and Add/Remove Programs)
     WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayName" "${APP_NAME}"
     WriteRegStr HKCU "${UNINSTALL_KEY}" "UninstallString" "$\"$INSTDIR\uninstall.exe$\""
+    WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayIcon" "$INSTDIR\appicon.ico"
     WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayVersion" "${APP_VERSION}"
     WriteRegStr HKCU "${UNINSTALL_KEY}" "Publisher" "${APP_PUBLISHER}"
     WriteRegStr HKCU "${UNINSTALL_KEY}" "URLInfoAbout" "${APP_URL}"
@@ -83,6 +85,7 @@ Section "Uninstall"
     SetShellVarContext current
 
     Delete "$INSTDIR\${APP_EXE}"
+    Delete "$INSTDIR\appicon.ico"
     Delete "$INSTDIR\uninstall.exe"
     RMDir "$INSTDIR"
 

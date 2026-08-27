@@ -2,24 +2,31 @@ version: '3'
 
 vars:
   BIN_NAME: pixalpeek
+  VERSION: 0.1.5-beta
+  WINDOWS_EXTRA: '{{if eq (OS) "windows"}} -H windowsgui{{end}}'
+  LDFLAGS: "-s -w{{.WINDOWS_EXTRA}} -X 'github.com/rkriad585/PixalPeek/internal/cli.Version={{.VERSION}}'"
 
 tasks:
-  bindings:
-    cmds:
-      - wails3 generate bindings -d frontend/bindings -ts -b -silent
-
-  frontend:
-    dir: frontend
-    cmds:
-      - npm run build
-
   dev:
     cmds:
       - wails3 dev
 
-  build:
+  syso:
+    platforms: [windows]
     cmds:
+      - wails3 generate syso -icon build/appicon.ico -manifest build/windows/wails.exe.manifest -info build/windows/info.json -arch {{ARCH}} -out rsrc_windows_{{ARCH}}.syso
+    silent: true
+
+  frontend:
+    dir: frontend
+    cmds:
+      - npm install --silent
+      - npm run build
+
+  build:
+    deps: [frontend]
+    cmds:
+      - task: syso
       - wails3 generate bindings -d frontend/bindings -ts -b -silent
-      - task: frontend
-      - go build -tags desktop,production -ldflags "-s -w" -o {{.BIN_NAME}}{{exeExt}} .
+      - go build -tags desktop,production -ldflags "{{.LDFLAGS}}" -o bin/{{.BIN_NAME}}{{exeExt}} .
     silent: true

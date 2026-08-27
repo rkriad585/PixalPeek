@@ -18,7 +18,7 @@ permissions:
 env:
   APP_NAME: pixalpeek
   GO_VERSION: "1.26"
-  WAILS_VERSION: "v3.0.0-beta.2"
+  WAILS_VERSION: "v3.0.0-beta.14"
   NODE_VERSION: "22"
 
 jobs:
@@ -108,15 +108,23 @@ jobs:
         working-directory: frontend
         run: npm run build
 
+      - name: Install Wails v3 CLI
+        shell: pwsh
+        run: |
+          go install github.com/wailsapp/wails/v3/cmd/wails3@${{ env.WAILS_VERSION }}
+          wails3 version
+
       - name: Build Windows binary
         shell: pwsh
         run: |
           $env:CGO_ENABLED = "1"
-          go build `
-            -tags desktop,production `
-            -ldflags "-s -w -X 'github.com/rkriad585/PixalPeek/internal/cli.Version=${{ needs.version.outputs.version }}'" `
-            -o "dist/${{ env.APP_NAME }}.exe" `
-            .
+          wails3 build
+
+      - name: Copy binary to dist for NSIS
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path "dist" -Force | Out-Null
+          Copy-Item "bin/${{ env.APP_NAME }}.exe" "dist/${{ env.APP_NAME }}.exe" -Force
 
       - name: Install NSIS
         shell: pwsh
@@ -137,7 +145,7 @@ jobs:
         shell: pwsh
         run: |
           $installer = Get-ChildItem -Path "." -Filter "*.exe" -File |
-            Where-Object { $_.FullName -notlike "*\dist\${{ env.APP_NAME }}.exe" } |
+            Where-Object { $_.FullName -notlike "*\dist\${{ env.APP_NAME }}.exe" -and $_.FullName -notlike "*\bin\${{ env.APP_NAME }}.exe" } |
             Select-Object -First 1
           if (!$installer) {
             Write-Error "NSIS installer was not found."
