@@ -120,40 +120,36 @@ jobs:
           $env:CGO_ENABLED = "1"
           wails3 build
 
-      - name: Copy binary to dist for NSIS
+      - name: Copy binary to dist for installer
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path "dist" -Force | Out-Null
           Copy-Item "bin/${{ env.APP_NAME }}.exe" "dist/${{ env.APP_NAME }}.exe" -Force
 
-      - name: Install NSIS
+      - name: Install Inno Setup
         shell: pwsh
         run: |
-          choco install nsis -y --no-progress
-          echo "C:\Program Files (x86)\NSIS" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          choco install innosetup -y --no-progress
 
-      - name: Build NSIS installer
+      - name: Build Inno Setup installer
         shell: pwsh
         run: |
-          makensis `
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" `
+            /O"$env:GITHUB_WORKSPACE\dist" `
             /DAPP_VERSION="${{ needs.version.outputs.version }}" `
             /DAPP_ARCH="${{ matrix.arch }}" `
-            build/windows/installer.nsi
+            build/windows/installer.iss
 
-      - name: Normalize artifact name
+      - name: Verify installer artifact
         id: installer
         shell: pwsh
         run: |
-          $installer = Get-ChildItem -Path "." -Filter "*.exe" -File |
-            Where-Object { $_.FullName -notlike "*\dist\${{ env.APP_NAME }}.exe" -and $_.FullName -notlike "*\bin\${{ env.APP_NAME }}.exe" } |
-            Select-Object -First 1
-          if (!$installer) {
-            Write-Error "NSIS installer was not found."
+          $installer = "dist/${{ env.APP_NAME }}-${{ matrix.os_name }}-${{ matrix.arch }}.exe"
+          if (!(Test-Path $installer)) {
+            Write-Error "Inno Setup installer was not found: $installer"
             exit 1
           }
-          $output = "dist/${{ env.APP_NAME }}-${{ matrix.os_name }}-${{ matrix.arch }}.exe"
-          Move-Item $installer.FullName $output -Force
-          Write-Host "Installer: $output"
+          Write-Host "Installer: $installer ($((Get-Item $installer).Length) bytes)"
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
@@ -347,7 +343,7 @@ jobs:
           Maintainer: rkriad585 <rkriad585@gmail.com>
           Homepage: https://rkriad585.github.io/PixalPeek
           Installed-Size: ${SIZE_KB}
-          Description: Dot-matrix QR code scanner and generator
+          Description: QR code scanner and generator
            PixalPeek is a dual-mode QR code tool with a GUI and CLI.
            Supports scanning, generating, batch processing, camera scan,
            clipboard decoding, and more.
@@ -375,7 +371,7 @@ jobs:
           Name:           ${{ env.APP_NAME }}
           Version:        ${VERSION_CLEAN}
           Release:        1%{?dist}
-          Summary:        Dot-matrix QR code scanner and generator
+          Summary:        QR code scanner and generator
           License:        MIT
           URL:            https://rkriad585.github.io/PixalPeek
           BuildArch:      ${RPM_ARCH}

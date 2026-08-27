@@ -5,7 +5,7 @@
 <h1 align="center">PIXALPEEK</h1>
 
 <p align="center">
-  <strong>Dot-matrix QR code scanner & generator</strong><br/>
+  <strong>QR code scanner & generator</strong><br/>
   One Go binary, dual personality — GUI + CLI
 </p>
 

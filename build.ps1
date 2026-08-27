@@ -3,7 +3,7 @@ $ErrorActionPreference = "Stop"
 $repo       = "rkriad585/PixalPeek"
 $appName    = "PixalPeek"
 $version    = "0.1.5-beta"
-$nsisScript = "build\windows\installer.nsi"
+$issScript  = "build\windows\installer.iss"
 $distDir    = "dist"
 $outDir     = "dist\installers"
 
@@ -25,40 +25,35 @@ if (-not $wails) {
     if ($LASTEXITCODE -ne 0) { Write-Error "Failed to install wails3 CLI"; exit 1 }
 }
 
-$nsis = Get-Command makensis -ErrorAction SilentlyContinue
-if (-not $nsis) {
-    # Check common NSIS install paths
-    $nsisPaths = @(
-        "$env:ProgramFiles\NSIS\makensis.exe",
-        "${env:ProgramFiles(x86)}\NSIS\makensis.exe",
-        "$env:LOCALAPPDATA\Programs\NSIS\makensis.exe"
+$iscc = Get-Command ISCC -ErrorAction SilentlyContinue
+if (-not $iscc) {
+    # Check common Inno Setup install paths
+    $isccPaths = @(
+        "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+        "${env:ProgramFiles(x86)}\Inno Setup 5\ISCC.exe",
+        "$env:ProgramFiles\Inno Setup 6\ISCC.exe",
+        "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe"
     )
-    $nsisFound = $false
-    foreach ($p in $nsisPaths) {
+    $isccFound = $false
+    foreach ($p in $isccPaths) {
         if (Test-Path $p) {
-            $nsis = $p
-            $nsisFound = $true
+            $iscc = $p
+            $isccFound = $true
             break
         }
     }
-    if (-not $nsisFound) {
-        Write-Host "  NSIS not found. Install from https://nsis.sourceforge.io/Download" -ForegroundColor Yellow
-        Write-Host "  Downloading NSIS installer..." -ForegroundColor Cyan
-
-        $nsisUrl = "https://sourceforge.net/projects/nsis/files/NSIS%203/3.10/nsis-3.10-setup.exe/download"
-        $nsisSetup = Join-Path $env:TEMP "nsis-setup.exe"
-        Invoke-WebRequest -Uri $nsisUrl -OutFile $nsisSetup -UseBasicParsing
-        Write-Host "  Run NSIS installer, then re-run this script." -ForegroundColor Yellow
-        Start-Process $nsisSetup
+    if (-not $isccFound) {
+        Write-Host "  Inno Setup not found. Install it (e.g. winget install JRSoftware.InnoSetup) and re-run." -ForegroundColor Yellow
+        Write-Host "  https://jrsoftware.org/isdl.php" -ForegroundColor Gray
         exit 1
     }
 } else {
-    $nsis = $nsis.Source
+    $iscc = $iscc.Source
 }
 
 Write-Host "  Go:     $(go version)" -ForegroundColor Gray
 Write-Host "  Wails:  $(wails3 version 2>$null)" -ForegroundColor Gray
-Write-Host "  NSIS:   $nsis" -ForegroundColor Gray
+Write-Host "  Inno:   $iscc" -ForegroundColor Gray
 
 # ── Ensure directories ──────────────────────────────────
 if (-not (Test-Path $distDir))  { New-Item -ItemType Directory -Path $distDir  -Force | Out-Null }
@@ -77,20 +72,19 @@ Copy-Item "bin\pixalpeek.exe" "$distDir\pixalpeek.exe" -Force
 $exeSize = [math]::Round((Get-Item "$distDir\pixalpeek.exe").Length / 1MB, 2)
 Write-Host "  Built: pixalpeek.exe ($exeSize MB)" -ForegroundColor Gray
 
-# ── Build NSIS installer ────────────────────────────────
-Write-Host "[3/5] Building NSIS installer..." -ForegroundColor Cyan
-if (Test-Path $nsisScript) {
-    & $nsis /DAPP_VERSION=$version $nsisScript
-    if ($LASTEXITCODE -ne 0) { Write-Error "NSIS build failed"; exit 1 }
+# ── Build Inno Setup installer ─────────────────────────
+Write-Host "[3/5] Building Inno Setup installer..." -ForegroundColor Cyan
+if (Test-Path $issScript) {
+    & $iscc /O"$outDir" /DAPP_VERSION=$version /DAPP_ARCH=amd64 $issScript
+    if ($LASTEXITCODE -ne 0) { Write-Error "Inno Setup build failed"; exit 1 }
 
-    $installer = Get-ChildItem -Path "." -Filter "pixalpeek-windows-*.exe" | Select-Object -First 1
+    $installer = Get-ChildItem -Path $outDir -Filter "pixalpeek-windows-*.exe" | Select-Object -First 1
     if ($installer) {
-        Move-Item $installer.FullName -Destination $outDir -Force
         $installerSize = [math]::Round($installer.Length / 1MB, 2)
         Write-Host "  Installer: $($installer.Name) ($installerSize MB)" -ForegroundColor Gray
     }
 } else {
-    Write-Host "  NSIS script not found, skipping installer" -ForegroundColor Yellow
+    Write-Host "  Inno Setup script not found, skipping installer" -ForegroundColor Yellow
 }
 
 # ── Build Android APK ──────────────────────────────────

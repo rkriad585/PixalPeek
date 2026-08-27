@@ -66,7 +66,7 @@ func runGUI() {
 
 	appInstance = application.New(application.Options{
 		Name:        "PixalPeek",
-		Description: "Dot-matrix QR code scanner and generator",
+		Description: "QR code scanner and generator",
 		Icon:        appIcon,
 		Services: []application.Service{
 			application.NewService(svc),

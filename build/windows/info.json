@@ -6,10 +6,10 @@
 		"0000": {
 			"ProductVersion": "0.1.5-beta",
 			"CompanyName": "rkriad585",
-			"FileDescription": "Dot-matrix QR code scanner & generator",
+			"FileDescription": "QR code scanner & generator",
 			"LegalCopyright": "Copyright 2026 rkriad585",
 			"ProductName": "PixalPeek",
-			"Comments": "Dot-matrix QR code scanner & generator"
+			"Comments": "QR code scanner & generator"
 		}
 	}
 }

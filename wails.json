@@ -18,7 +18,7 @@
     "copyright": "Copyright 2026 rkriad585",
     "website": "https://rkriad585.github.io",
     "description": "Dual-mode QR code scanner & generator with terminal-aesthetic GUI and full CLI",
-    "comments": "Dot-matrix QR code scanner & generator"
+    "comments": "QR code scanner & generator"
   },
   "projectUrl": "https://rkriad585.github.io/PixalPeek",
   "repoUrl": "https://github.com/rkriad585/PixalPeek",

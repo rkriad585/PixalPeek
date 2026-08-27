@@ -1,7 +1,7 @@
 Name:           pixalpeek
 Version:        0.1.5
 Release:        1%{?dist}
-Summary:        Dot-matrix QR code scanner & generator
+Summary:        QR code scanner & generator
 License:        MIT
 URL:            https://rkriad585.github.io/PixalPeek
 Source0:        %{name}-%{version}.tar.gz

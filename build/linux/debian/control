@@ -5,7 +5,7 @@ Priority: optional
 Architecture: amd64
 Maintainer: rkriad585 <rkriad585@gmail.com>
 Homepage: https://rkriad585.github.io/PixalPeek
-Description: Dot-matrix QR code scanner & generator
+Description: QR code scanner & generator
  PixalPeek is a dual-mode QR code tool with a GUI (Wails v3)
  and a full-featured CLI. Supports scanning, generating, batch
  processing, camera scan, clipboard decode, and more.
