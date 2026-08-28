@@ -407,104 +407,6 @@ jobs:
           if-no-files-found: error
 
   # ═══════════════════════════════════════════════════════
-  # Android
-  # ═══════════════════════════════════════════════════════
-
-  build-android:
-    name: Android ${{ matrix.arch }}
-    needs: version
-    strategy:
-      fail-fast: false
-      matrix:
-        arch:
-          - arm64
-          - armeabi-v7a
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          cache: true
-
-      - name: Setup Java
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Install Linux build dependencies for wails3 CLI
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y \
-            pkg-config \
-            libgtk-4-dev \
-            libwebkitgtk-6.0-dev
-
-      - name: Install Android NDK
-        shell: bash
-        run: |
-          set -euo pipefail
-          yes | sdkmanager --install "ndk;27.0.12077973" 2>/dev/null || true
-          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> "$GITHUB_ENV"
-
-      - name: Download Go dependencies
-        run: go mod download
-
-      - name: Install frontend dependencies
-        working-directory: frontend
-        run: npm ci
-
-      - name: Build frontend
-        working-directory: frontend
-        run: npm run build
-
-      - name: Build Android binary
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p dist
-          export CGO_ENABLED=1
-          export GOOS=android
-          NDK_BIN="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin"
-          case "${{ matrix.arch }}" in
-            arm64)
-              export GOARCH=arm64
-              export CC="$NDK_BIN/aarch64-linux-android35-clang"
-              ;;
-            armeabi-v7a)
-              export GOARCH=arm
-              export GOARM=7
-              export CC="$NDK_BIN/armv7a-linux-androideabi35-clang"
-              ;;
-          esac
-          go build \
-            -tags desktop,production \
-            -ldflags "-s -w -X 'github.com/rkriad585/PixalPeek/internal/cli.Version=${{ needs.version.outputs.version }}'" \
-            -o "dist/${{ env.APP_NAME }}-android-${{ matrix.arch }}" \
-            .
-
-      - name: Upload Android artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: android-${{ matrix.arch }}
-          path: dist/${{ env.APP_NAME }}-android-${{ matrix.arch }}
-          if-no-files-found: error
-
-  # ═══════════════════════════════════════════════════════
   # Release
   # ═══════════════════════════════════════════════════════
 
@@ -515,7 +417,6 @@ jobs:
       - build-windows
       - build-macos
       - build-linux
-      - build-android
     runs-on: ubuntu-latest
     steps:
       - name: Download all artifacts
@@ -545,5 +446,3 @@ jobs:
             artifacts/${{ env.APP_NAME }}-linux-amd64.rpm
             artifacts/${{ env.APP_NAME }}-arm-linux-arm64.deb
             artifacts/${{ env.APP_NAME }}-arm-linux-arm64.rpm
-            artifacts/${{ env.APP_NAME }}-android-arm64
-            artifacts/${{ env.APP_NAME }}-android-armeabi-v7a
